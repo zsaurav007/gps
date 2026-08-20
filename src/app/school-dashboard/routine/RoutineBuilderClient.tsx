@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { addRoutineSlot, deleteRoutineSlot, autoGenerateRoutine } from '@/app/actions/routine-actions'
+import { addRoutineSlot, autoGenerateRoutine } from '@/app/actions/routine-actions'
 
 // ---------------------------------------------------------------------------
 // Type Definitions
@@ -54,7 +54,6 @@ export default function RoutineBuilderClient({
   initialSlots, 
   teachers, 
   classes, 
-  subjects, // Passed in but currently unused in the UI
   config 
 }: RoutineBuilderClientProps) {
   const [activeTab, setActiveTab] = useState<string>('manual')
@@ -95,7 +94,6 @@ export default function RoutineBuilderClient({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="bg-white rounded-lg shadow-sm p-6 lg:col-span-1 border-t-4 border-blue-900">
             <h2 className="text-lg font-semibold mb-4">Manual Slot Entry</h2>
-            {/* Note: Server Actions (addRoutineSlot) naturally expect FormData when passed to the action prop */}
             <form action={addRoutineSlot} className="flex flex-col gap-4">
               <input type="hidden" name="schoolId" value={config.schoolId} />
               

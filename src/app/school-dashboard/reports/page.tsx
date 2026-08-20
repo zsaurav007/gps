@@ -7,9 +7,41 @@ import ReportsDashboard from './ReportsDashboard'
 import CombinedReportsBuilder from './CombinedReportsBuilder'
 
 // ==================================================================
+// Type Definitions
+// ==================================================================
+
+export interface ExamMark {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+export interface ExamData {
+  id: string | number;
+  name: string;
+  class_id: string | number;
+  exam_date: string;
+}
+
+export interface ClassData {
+  id: string | number;
+  name: string;
+}
+
+export interface StudentData {
+  id: string | number;
+  first_name: string;
+  last_name: string;
+  class_id: string | number;
+}
+
+export interface SchoolData {
+  name: string;
+}
+
+// ==================================================================
 // SERVER ACTION: Fetch marks for the Combined Report Engine
 // ==================================================================
-export async function fetchMarksForExams(examIds: string[]) {
+export async function fetchMarksForExams(examIds: string[]): Promise<ExamMark[]> {
   'use server'
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -19,7 +51,7 @@ export async function fetchMarksForExams(examIds: string[]) {
     .in('exam_id', examIds)
     
   if (error) throw new Error(error.message)
-  return data || []
+  return (data as ExamMark[]) || []
 }
 
 export default async function ReportsPage() {
@@ -34,6 +66,7 @@ export default async function ReportsPage() {
   const schoolId = sessionData.schoolId
 
   // Fetch dropdown dependencies, Students, AND the School Name
+  // We cast the Promise.all result to strongly type the returned data arrays
   const [
     { data: exams },
     { data: classes },
@@ -44,7 +77,12 @@ export default async function ReportsPage() {
     supabase.schema('gps').from('classes').select('id, name').eq('school_id', schoolId).order('name', { ascending: true }),
     supabase.schema('gps').from('students').select('id, first_name, last_name, class_id').eq('school_id', schoolId).order('first_name', { ascending: true }),
     supabase.schema('gps').from('schools').select('name').eq('id', schoolId).single()
-  ])
+  ]) as [
+    { data: ExamData[] | null },
+    { data: ClassData[] | null },
+    { data: StudentData[] | null },
+    { data: SchoolData | null }
+  ]
 
   // Fallback string just in case the database fetch fails
   const fetchedSchoolName = schoolData?.name || "Standard High School"

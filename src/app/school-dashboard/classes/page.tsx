@@ -10,6 +10,12 @@ import ClassSubjectManager from './ClassSubjectManager'
 // Type Definitions
 // ---------------------------------------------------------------------------
 
+export interface SessionData {
+  schoolId: string | number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
 export interface Subject {
   id: string | number;
   name: string;
@@ -36,31 +42,32 @@ export default async function ClassesMappingPage() {
   const sessionCookie = cookieStore.get('school_session')?.value
   if (!sessionCookie) redirect('/login')
 
-  const sessionData = await decrypt(sessionCookie)
-  if (!sessionData) redirect('/login')
+  // Cast the decrypted payload so TypeScript knows schoolId exists
+  const sessionData = (await decrypt(sessionCookie)) as SessionData | null
+  if (!sessionData || !sessionData.schoolId) redirect('/login')
 
   const supabase = await createClient()
 
   // 1. Fetch all subjects for this school
-  const { data: allSubjects } = await supabase
+  const { data: allSubjects } = (await supabase
     .schema('gps')
     .from('subjects')
     .select('id, name')
-    .eq('school_id', sessionData.schoolId) as { data: Subject[] | null }
+    .eq('school_id', sessionData.schoolId)) as { data: Subject[] | null }
 
   // 2. Fetch all classes for this school
-  const { data: classes } = await supabase
+  const { data: classes } = (await supabase
     .schema('gps')
     .from('classes')
     .select('*')
     .eq('school_id', sessionData.schoolId)
-    .order('created_at', { ascending: true }) as { data: ClassData[] | null }
+    .order('created_at', { ascending: true })) as { data: ClassData[] | null }
 
   // 3. Fetch the mapping table
-  const { data: mappings } = await supabase
+  const { data: mappings } = (await supabase
     .schema('gps')
     .from('class_subjects')
-    .select('class_id, subject_id') as { data: ClassSubjectMapping[] | null }
+    .select('class_id, subject_id')) as { data: ClassSubjectMapping[] | null }
 
   return (
     <main className="min-h-screen bg-gray-50 p-8">
@@ -81,7 +88,8 @@ export default async function ClassesMappingPage() {
           
           {/* Left Column: Add New Class Form */}
           <div className="lg:col-span-1">
-            <AddClassForm schoolId={sessionData.schoolId} />
+            {/* Convert schoolId to string if your AddClassForm expects a string strictly */}
+            <AddClassForm schoolId={String(sessionData.schoolId)} />
           </div>
 
           {/* Right Column: Class Mapping Grid */}
@@ -91,7 +99,7 @@ export default async function ClassesMappingPage() {
                 {classes.map((cls) => {
                   // Figure out which subjects are mapped to this specific class
                   const assignedIds = mappings
-                    ?.filter(m => m.class_id === cls.id)
+                    ?.filter(m => String(m.class_id) === String(cls.id))
                     .map(m => m.subject_id) || []
 
                   return (

@@ -11,24 +11,84 @@
 // from the SAME underlying placement, so the two views can never disagree.
 
 // ---------------------------------------------------------------------------
-// Shapes (plain objects, not enforced by a compiler unless you use .ts)
+// Shapes / Type Definitions
 // ---------------------------------------------------------------------------
-//
-// ClassInfo:        { id, name, periodsPerDay, sections: string[] }  // sections: [] means no sections
-// SubjectRequirement:{ id, classId, section, subject, periodsPerWeek }
-// Teacher:          { id, name, maxPeriodsPerDay }
-// Assignment:       { id, teacherId, classId, section, subject }
-//
-// generateRoutine(days, classes, requirements, teachers, assignments) returns:
-// {
-//   status: 'success' | 'success_with_warnings' | 'no_valid_solution',
-//   totalRequired, totalScheduled,
-//   unscheduled: [{ classId, className, section, subject, reason }],
-//   entries: [{ day, period, classId, className, section, subject, teacherId, teacherName }]
-// }
 
-const sectionKey = (classId, section) => `${classId}::${section || ''}`
-const slotKey = (day, period, ...rest) => [day, period, ...rest].join('::')
+export interface ClassInfo {
+  id: string;
+  name: string;
+  periodsPerDay: number;
+  sections: string[]; // sections: [] means no sections
+}
+
+export interface SubjectRequirement {
+  id: string;
+  classId: string;
+  section?: string;
+  subject: string;
+  periodsPerWeek: number;
+}
+
+export interface Teacher {
+  id: string;
+  name: string;
+  maxPeriodsPerDay?: number;
+}
+
+export interface Assignment {
+  id: string;
+  teacherId: string;
+  classId: string;
+  section?: string;
+  subject: string;
+}
+
+export interface RoutineEntry {
+  day: string;
+  period: number;
+  classId: string;
+  className: string;
+  section: string;
+  subject: string;
+  teacherId: string;
+  teacherName: string;
+}
+
+export interface UnscheduledLesson {
+  classId: string;
+  className: string;
+  section: string;
+  subject: string;
+  reason: string;
+}
+
+export interface GenerationResult {
+  status: 'success' | 'success_with_warnings' | 'no_valid_solution';
+  totalRequired: number;
+  totalScheduled: number;
+  unscheduled: UnscheduledLesson[];
+  entries: RoutineEntry[];
+  generationTimeMs: number;
+}
+
+interface InternalLesson {
+  classId: string;
+  className: string;
+  periodsPerDay: number;
+  section: string;
+  subject: string;
+  candidateTeachers: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Core Logic
+// ---------------------------------------------------------------------------
+
+const sectionKey = (classId: string, section?: string): string =>
+  `${classId}::${section || ''}`
+
+const slotKey = (day: string, period: number, ...rest: (string | undefined)[]): string =>
+  [day, period, ...rest].join('::')
 
 /**
  * Basic sanity checks before generating (missing teacher for a subject,
@@ -36,13 +96,21 @@ const slotKey = (day, period, ...rest) => [day, period, ...rest].join('::')
  * human-readable warnings — nothing here blocks generation, it just helps
  * you spot gaps you might have missed while entering data manually.
  */
-export function analyzeSetup(days, classes, requirements, teachers, assignments) {
-  const warnings = []
+export function analyzeSetup(
+  days: string[],
+  classes: ClassInfo[],
+  requirements: SubjectRequirement[],
+  teachers: Teacher[],
+  assignments: Assignment[]
+): string[] {
+  const warnings: string[] = []
 
   for (const cls of classes) {
     const sections = cls.sections.length > 0 ? cls.sections : ['']
     for (const section of sections) {
-      const reqs = requirements.filter((r) => r.classId === cls.id && (r.section || '') === section)
+      const reqs = requirements.filter(
+        (r) => r.classId === cls.id && (r.section || '') === section
+      )
       const totalRequired = reqs.reduce((sum, r) => sum + Number(r.periodsPerWeek || 0), 0)
       const availableSlots = days.length * cls.periodsPerDay
 
@@ -63,7 +131,10 @@ export function analyzeSetup(days, classes, requirements, teachers, assignments)
           continue
         }
         const qualified = assignments.filter(
-          (a) => a.classId === cls.id && (a.section || '') === section && a.subject === req.subject
+          (a) =>
+            a.classId === cls.id &&
+            (a.section || '') === section &&
+            a.subject === req.subject
         )
         if (qualified.length === 0) {
           warnings.push(`${cls.name}${section} — ${req.subject} has no teacher assigned.`)
@@ -85,20 +156,33 @@ export function analyzeSetup(days, classes, requirements, teachers, assignments)
  * timetable, and any lesson it can't place comes back with a plain-English
  * reason instead of a silent failure.
  */
-export function generateRoutine(days, classes, requirements, teachers, assignments) {
+export function generateRoutine(
+  days: string[],
+  classes: ClassInfo[],
+  requirements: SubjectRequirement[],
+  teachers: Teacher[],
+  assignments: Assignment[]
+): GenerationResult {
   const start = Date.now()
-  const teacherById = new Map(teachers.map((t) => [t.id, t]))
+  const teacherById = new Map<string, Teacher>(teachers.map((t) => [t.id, t]))
 
   // Build the flat list of individual lessons that need a slot
-  const lessons = []
+  const lessons: InternalLesson[] = []
   for (const cls of classes) {
     const sections = cls.sections.length > 0 ? cls.sections : ['']
     for (const section of sections) {
-      const reqs = requirements.filter((r) => r.classId === cls.id && (r.section || '') === section)
+      const reqs = requirements.filter(
+        (r) => r.classId === cls.id && (r.section || '') === section
+      )
       for (const req of reqs) {
         if (!req.periodsPerWeek || req.periodsPerWeek <= 0) continue
         const candidateTeachers = assignments
-          .filter((a) => a.classId === cls.id && (a.section || '') === section && a.subject === req.subject)
+          .filter(
+            (a) =>
+              a.classId === cls.id &&
+              (a.section || '') === section &&
+              a.subject === req.subject
+          )
           .map((a) => a.teacherId)
         for (let i = 0; i < req.periodsPerWeek; i++) {
           lessons.push({
@@ -117,27 +201,28 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
   // Scarcest lessons (fewest possible teachers) placed first
   lessons.sort((a, b) => a.candidateTeachers.length - b.candidateTeachers.length)
 
-  const classSlotTaken = new Set() // day::period::classId::section
-  const teacherSlotTaken = new Set() // day::period::teacherId
-  const teacherDailyCount = new Map() // teacherId::day -> count
-  const subjectDayUsed = new Map() // classId::section::subject -> Set(days used)
+  const classSlotTaken = new Set<string>() // day::period::classId::section
+  const teacherSlotTaken = new Set<string>() // day::period::teacherId
+  const teacherDailyCount = new Map<string, number>() // teacherId::day -> count
+  const subjectDayUsed = new Map<string, Set<string>>() // classId::section::subject -> Set(days used)
 
-  const bump = (map, k, by = 1) => map.set(k, (map.get(k) || 0) + by)
+  const bump = (map: Map<string, number>, k: string, by = 1) =>
+    map.set(k, (map.get(k) || 0) + by)
 
-  const entries = []
-  const unscheduled = []
+  const entries: RoutineEntry[] = []
+  const unscheduled: UnscheduledLesson[] = []
 
-  function commit(entry) {
+  function commit(entry: RoutineEntry) {
     entries.push(entry)
     classSlotTaken.add(slotKey(entry.day, entry.period, entry.classId, entry.section))
     teacherSlotTaken.add(slotKey(entry.day, entry.period, entry.teacherId))
     bump(teacherDailyCount, `${entry.teacherId}::${entry.day}`)
     const sdKey = `${entry.classId}::${entry.section}::${entry.subject}`
-    if (!subjectDayUsed.has(sdKey)) subjectDayUsed.set(sdKey, new Set())
-    subjectDayUsed.get(sdKey).add(entry.day)
+    if (!subjectDayUsed.has(sdKey)) subjectDayUsed.set(sdKey, new Set<string>())
+    subjectDayUsed.get(sdKey)!.add(entry.day)
   }
 
-  function release(entry) {
+  function release(entry: RoutineEntry) {
     const idx = entries.indexOf(entry)
     if (idx >= 0) entries.splice(idx, 1)
     classSlotTaken.delete(slotKey(entry.day, entry.period, entry.classId, entry.section))
@@ -145,12 +230,14 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
     bump(teacherDailyCount, `${entry.teacherId}::${entry.day}`, -1)
   }
 
-  function tryPlace(lesson) {
+  function tryPlace(lesson: InternalLesson): RoutineEntry | null {
     const sdKey = `${lesson.classId}::${lesson.section}::${lesson.subject}`
-    const daysUsed = subjectDayUsed.get(sdKey) || new Set()
+    const daysUsed = subjectDayUsed.get(sdKey) || new Set<string>()
 
     // Prefer days this subject hasn't used yet, to spread it across the week
-    const orderedDays = [...days].sort((a, b) => (daysUsed.has(a) ? 1 : 0) - (daysUsed.has(b) ? 1 : 0))
+    const orderedDays = [...days].sort(
+      (a, b) => (daysUsed.has(a) ? 1 : 0) - (daysUsed.has(b) ? 1 : 0)
+    )
 
     for (const day of orderedDays) {
       for (let period = 1; period <= lesson.periodsPerDay; period++) {
@@ -179,7 +266,7 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
     return null
   }
 
-  const placedStack = []
+  const placedStack: RoutineEntry[] = []
   const RETRY_BUDGET = 2
 
   for (const lesson of lessons) {
@@ -187,8 +274,12 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
     let retries = 0
 
     while (!placed && retries < RETRY_BUDGET && placedStack.length > 0) {
-      const idxFromEnd = [...placedStack].reverse().findIndex((p) => lesson.candidateTeachers.includes(p.teacherId))
+      const idxFromEnd = [...placedStack]
+        .reverse()
+        .findIndex((p) => lesson.candidateTeachers.includes(p.teacherId))
+      
       if (idxFromEnd === -1) break
+      
       const realIdx = placedStack.length - 1 - idxFromEnd
       const [victim] = placedStack.splice(realIdx, 1)
       release(victim)
@@ -202,6 +293,7 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
         subject: victim.subject,
         candidateTeachers: [victim.teacherId],
       })
+
       if (victimReplaced) {
         commit(victimReplaced)
         placedStack.push(victimReplaced)
@@ -239,7 +331,12 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
 
   const totalRequired = lessons.length
   const totalScheduled = entries.length
-  const status = unscheduled.length === 0 ? 'success' : totalScheduled === 0 ? 'no_valid_solution' : 'success_with_warnings'
+  const status =
+    unscheduled.length === 0
+      ? 'success'
+      : totalScheduled === 0
+      ? 'no_valid_solution'
+      : 'success_with_warnings'
 
   return {
     status,
@@ -252,18 +349,24 @@ export function generateRoutine(days, classes, requirements, teachers, assignmen
 }
 
 /** Groups generated entries into one weekly grid per teacher (combined across all their classes/sections). */
-export function buildTeacherRoutines(entries, teachers) {
-  const byTeacher = new Map(teachers.map((t) => [t.id, []]))
+export function buildTeacherRoutines(
+  entries: RoutineEntry[],
+  teachers: Teacher[]
+): Map<string, RoutineEntry[]> {
+  const byTeacher = new Map<string, RoutineEntry[]>(teachers.map((t) => [t.id, []]))
   for (const e of entries) {
     if (!byTeacher.has(e.teacherId)) byTeacher.set(e.teacherId, [])
-    byTeacher.get(e.teacherId).push(e)
+    byTeacher.get(e.teacherId)!.push(e)
   }
   return byTeacher
 }
 
 /** Groups generated entries into one weekly grid per class/section. */
-export function buildClassRoutines(entries, classes) {
-  const byClass = new Map()
+export function buildClassRoutines(
+  entries: RoutineEntry[],
+  classes: ClassInfo[]
+): Map<string, RoutineEntry[]> {
+  const byClass = new Map<string, RoutineEntry[]>()
   for (const cls of classes) {
     const sections = cls.sections.length > 0 ? cls.sections : ['']
     for (const section of sections) {
@@ -273,7 +376,7 @@ export function buildClassRoutines(entries, classes) {
   for (const e of entries) {
     const k = sectionKey(e.classId, e.section)
     if (!byClass.has(k)) byClass.set(k, [])
-    byClass.get(k).push(e)
+    byClass.get(k)!.push(e)
   }
   return byClass
 }

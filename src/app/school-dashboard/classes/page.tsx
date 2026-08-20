@@ -6,6 +6,31 @@ import { createClient } from '@/lib/supabase/server'
 import AddClassForm from './AddClassForm'
 import ClassSubjectManager from './ClassSubjectManager'
 
+// ---------------------------------------------------------------------------
+// Type Definitions
+// ---------------------------------------------------------------------------
+
+export interface Subject {
+  id: string | number;
+  name: string;
+}
+
+export interface ClassData {
+  id: string | number;
+  // Accommodates the select('*') while ensuring 'id' is known to TypeScript
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any; 
+}
+
+export interface ClassSubjectMapping {
+  class_id: string | number;
+  subject_id: string | number;
+}
+
+// ---------------------------------------------------------------------------
+// Page Component
+// ---------------------------------------------------------------------------
+
 export default async function ClassesMappingPage() {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('school_session')?.value
@@ -21,7 +46,7 @@ export default async function ClassesMappingPage() {
     .schema('gps')
     .from('subjects')
     .select('id, name')
-    .eq('school_id', sessionData.schoolId)
+    .eq('school_id', sessionData.schoolId) as { data: Subject[] | null }
 
   // 2. Fetch all classes for this school
   const { data: classes } = await supabase
@@ -29,13 +54,13 @@ export default async function ClassesMappingPage() {
     .from('classes')
     .select('*')
     .eq('school_id', sessionData.schoolId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: true }) as { data: ClassData[] | null }
 
   // 3. Fetch the mapping table
   const { data: mappings } = await supabase
     .schema('gps')
     .from('class_subjects')
-    .select('class_id, subject_id')
+    .select('class_id, subject_id') as { data: ClassSubjectMapping[] | null }
 
   return (
     <main className="min-h-screen bg-gray-50 p-8">

@@ -1,16 +1,116 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import Dropdown from '@/components/ui/dropdown' // adjust this path if your file is named differently
+
+// ---------------------------------------------------------------------------
+// Type Definitions
+// ---------------------------------------------------------------------------
+
+export interface ClassData {
+  id: string
+  name: string
+  periodsPerDay: number
+  sections: string[]
+}
+
+export interface SubjectData {
+  id: string
+  name: string
+}
+
+export interface RequirementData {
+  id: string
+  classId: string
+  section: string
+  subjectId: string
+  periodsPerWeek: number
+}
+
+export interface TeacherData {
+  id: string
+  name: string
+  maxPeriodsPerDay: number
+}
+
+export interface QualificationData {
+  id: string
+  teacherId: string
+  subjectId: string
+}
+
+export interface PreferredAssignmentData {
+  id: string
+  teacherId: string
+  classId: string
+  section: string
+  subjectId: string
+}
+
+export interface RoutineEntry {
+  day: string
+  period: number
+  classId: string
+  className: string
+  section: string
+  subject: string
+  teacherId: string | null
+  teacherName: string
+  isPlaceholder?: boolean
+}
+
+export interface UnscheduledLesson {
+  classId: string
+  className: string
+  section: string
+  subject: string
+  reason: string
+  needsTeacher: boolean
+}
+
+export interface GenerationResult {
+  status: 'success' | 'success_with_warnings' | 'no_valid_solution'
+  totalRequired: number
+  totalScheduled: number
+  unscheduled: UnscheduledLesson[]
+  entries: RoutineEntry[]
+  generationTimeMs?: number
+}
+
+export interface QualifiedTeacherStat {
+  id: string
+  name: string
+  maxWeekly: number
+}
+
+export interface DeficitSubjectStat {
+  id: string
+  name: string
+  req: number
+  qualifiedTeachers: QualifiedTeacherStat[]
+  rawCapacity: number
+  isUnassigned: boolean
+  effectiveCap: number
+  deficit: number
+  balance: number
+}
+
+export interface Deficits {
+  totalReq: number
+  totalCap: number
+  overallDeficit: number
+  subjectStats: DeficitSubjectStat[]
+  unassignedCurriculum: number
+}
 
 // ---------------------------------------------------------------------------
 // Scheduling engine & Utilities
 // ---------------------------------------------------------------------------
-const sectionKeyOf = (classId, section) => `${classId}::${section || ''}`
-const slotKeyOf = (day, period, ...rest) => [day, period, ...rest].join('::')
+const sectionKeyOf = (classId: string, section?: string): string => `${classId}::${section || ''}`
+const slotKeyOf = (day: string, period: number, ...rest: (string | undefined)[]): string => [day, period, ...rest].join('::')
 
 // Fisher-Yates shuffle to randomize placement and add variation
-function shuffleArray(array) {
+function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array]
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -20,9 +120,17 @@ function shuffleArray(array) {
 }
 
 // Calculate subject-wise requirements and teacher capacities
-function calculateDeficits(days, classes, subjects, requirements, teachers, qualifications, maxClassPeriods) {
+function calculateDeficits(
+  days: string[],
+  classes: ClassData[],
+  subjects: SubjectData[],
+  requirements: RequirementData[],
+  teachers: TeacherData[],
+  qualifications: QualificationData[],
+  maxClassPeriods: number
+): Deficits {
   let totalReq = 0
-  const subjectReqs = {}
+  const subjectReqs: Record<string, number> = {}
   subjects.forEach(s => subjectReqs[s.id] = 0)
   requirements.forEach(r => {
     const p = Number(r.periodsPerWeek) || 0
@@ -40,7 +148,7 @@ function calculateDeficits(days, classes, subjects, requirements, teachers, qual
   const totalCap = teachers.reduce((sum, t) => sum + (Math.min(t.maxPeriodsPerDay, maxClassPeriods) * days.length), 0)
 
   // Subject-wise analysis with teacher names & qualified capacity
-  const subjectStats = subjects.map(s => {
+  const subjectStats: Omit<DeficitSubjectStat, 'effectiveCap' | 'deficit' | 'balance'>[] = subjects.map(s => {
     const req = subjectReqs[s.id] || 0
     const qualifiedTeachers = qualifications
       .filter(q => q.subjectId === s.id)
@@ -48,7 +156,7 @@ function calculateDeficits(days, classes, subjects, requirements, teachers, qual
         const t = teachers.find(teach => teach.id === q.teacherId)
         return t ? { id: t.id, name: t.name, maxWeekly: Math.min(t.maxPeriodsPerDay, maxClassPeriods) * days.length } : null
       })
-      .filter(Boolean)
+      .filter((t): t is QualifiedTeacherStat => t !== null)
 
     const rawCapacity = qualifiedTeachers.reduce((sum, t) => sum + t.maxWeekly, 0)
 
@@ -63,7 +171,7 @@ function calculateDeficits(days, classes, subjects, requirements, teachers, qual
   })
 
   // Proportional capacity distribution for teachers teaching multiple subjects
-  const subjectProportionalCaps = {}
+  const subjectProportionalCaps: Record<string, number> = {}
   subjects.forEach(s => subjectProportionalCaps[s.id] = 0)
 
   teachers.forEach(t => {
@@ -84,7 +192,7 @@ function calculateDeficits(days, classes, subjects, requirements, teachers, qual
     }
   })
 
-  const detailedSubjectStats = subjectStats.map(s => {
+  const detailedSubjectStats: DeficitSubjectStat[] = subjectStats.map(s => {
     const effectiveCap = Math.floor(subjectProportionalCaps[s.id] || 0)
     const deficit = Math.max(0, s.req - effectiveCap)
     const balance = effectiveCap - s.req
@@ -107,9 +215,17 @@ function calculateDeficits(days, classes, subjects, requirements, teachers, qual
   }
 }
 
-function analyzeSetup(days, classes, subjects, requirements, teachers, qualifications, deficits) {
-  const warnings = []
-  const subjectNameById = new Map(subjects.map((s) => [s.id, s.name]))
+function analyzeSetup(
+  days: string[],
+  classes: ClassData[],
+  subjects: SubjectData[],
+  requirements: RequirementData[],
+  teachers: TeacherData[],
+  qualifications: QualificationData[],
+  deficits: Deficits
+): string[] {
+  const warnings: string[] = []
+  const subjectNameById = new Map<string, string>(subjects.map((s) => [s.id, s.name]))
 
   for (const cls of classes) {
     const sections = cls.sections.length > 0 ? cls.sections : ['']
@@ -165,9 +281,18 @@ function analyzeSetup(days, classes, subjects, requirements, teachers, qualifica
 }
 
 // Multi-start randomized greedy algorithm with balanced workload
-function generateRoutine(days, classes, subjects, requirements, teachers, qualifications, preferredAssignments, maxClassPeriods) {
+function generateRoutine(
+  days: string[],
+  classes: ClassData[],
+  subjects: SubjectData[],
+  requirements: RequirementData[],
+  teachers: TeacherData[],
+  qualifications: QualificationData[],
+  preferredAssignments: PreferredAssignmentData[],
+  maxClassPeriods: number
+): GenerationResult | null {
   const start = Date.now()
-  let bestResult = null
+  let bestResult: GenerationResult | null = null
   let minUnscheduled = Infinity
   const MAX_ATTEMPTS = 150 
 
@@ -192,11 +317,30 @@ function generateRoutine(days, classes, subjects, requirements, teachers, qualif
   return bestResult
 }
 
-function attemptSchedule(days, classes, subjects, requirements, teachers, qualifications, preferredAssignments, maxClassPeriods) {
-  const teacherById = new Map(teachers.map((t) => [t.id, t]))
-  const subjectNameById = new Map(subjects.map((s) => [s.id, s.name]))
+interface InternalLesson {
+  id: string
+  classId: string
+  className: string
+  periodsPerDay: number
+  section: string
+  subject: string
+  candidateTeachers: string[]
+}
+
+function attemptSchedule(
+  days: string[],
+  classes: ClassData[],
+  subjects: SubjectData[],
+  requirements: RequirementData[],
+  teachers: TeacherData[],
+  qualifications: QualificationData[],
+  preferredAssignments: PreferredAssignmentData[],
+  maxClassPeriods: number
+): GenerationResult {
+  const teacherById = new Map<string, TeacherData>(teachers.map((t) => [t.id, t]))
+  const subjectNameById = new Map<string, string>(subjects.map((s) => [s.id, s.name]))
   
-  const lessons = []
+  const lessons: InternalLesson[] = []
   for (const cls of classes) {
     const sections = cls.sections.length > 0 ? cls.sections : ['']
     for (const section of sections) {
@@ -233,49 +377,53 @@ function attemptSchedule(days, classes, subjects, requirements, teachers, qualif
     return a.candidateTeachers.length - b.candidateTeachers.length
   })
 
-  const classSlotTaken = new Set()
-  const teacherSlotTaken = new Set()
-  const teacherDailyCount = new Map()
-  const teacherTotalCount = new Map()
-  const subjectDayUsed = new Map()
-  const classDaySubjectTaken = new Set()
+  const classSlotTaken = new Set<string>()
+  const teacherSlotTaken = new Set<string>()
+  const teacherDailyCount = new Map<string, number>()
+  const teacherTotalCount = new Map<string, number>()
+  const subjectDayUsed = new Map<string, Set<string>>()
+  const classDaySubjectTaken = new Set<string>()
 
-  const entries = []
-  const unscheduled = []
+  const entries: RoutineEntry[] = []
+  const unscheduled: UnscheduledLesson[] = []
 
-  const bump = (map, k, by = 1) => map.set(k, (map.get(k) || 0) + by)
+  const bump = (map: Map<string, number>, k: string, by = 1) => map.set(k, (map.get(k) || 0) + by)
 
-  function commit(entry) {
+  function commit(entry: RoutineEntry) {
     entries.push(entry)
     classSlotTaken.add(slotKeyOf(entry.day, entry.period, entry.classId, entry.section))
-    teacherSlotTaken.add(slotKeyOf(entry.day, entry.period, entry.teacherId))
-    bump(teacherDailyCount, `${entry.teacherId}::${entry.day}`)
-    bump(teacherTotalCount, entry.teacherId)
+    if (entry.teacherId) {
+      teacherSlotTaken.add(slotKeyOf(entry.day, entry.period, entry.teacherId))
+      bump(teacherDailyCount, `${entry.teacherId}::${entry.day}`)
+      bump(teacherTotalCount, entry.teacherId)
+    }
     
     const sdKey = `${entry.classId}::${entry.section}::${entry.subject}`
     if (!subjectDayUsed.has(sdKey)) subjectDayUsed.set(sdKey, new Set())
-    subjectDayUsed.get(sdKey).add(entry.day)
+    subjectDayUsed.get(sdKey)!.add(entry.day)
     
     classDaySubjectTaken.add(`${entry.classId}::${entry.section}::${entry.day}::${entry.subject}`)
   }
 
-  function release(entry) {
+  function release(entry: RoutineEntry) {
     const idx = entries.indexOf(entry)
     if (idx >= 0) entries.splice(idx, 1)
     classSlotTaken.delete(slotKeyOf(entry.day, entry.period, entry.classId, entry.section))
-    teacherSlotTaken.delete(slotKeyOf(entry.day, entry.period, entry.teacherId))
-    bump(teacherDailyCount, `${entry.teacherId}::${entry.day}`, -1)
-    bump(teacherTotalCount, entry.teacherId, -1)
+    if (entry.teacherId) {
+      teacherSlotTaken.delete(slotKeyOf(entry.day, entry.period, entry.teacherId))
+      bump(teacherDailyCount, `${entry.teacherId}::${entry.day}`, -1)
+      bump(teacherTotalCount, entry.teacherId, -1)
+    }
     
     classDaySubjectTaken.delete(`${entry.classId}::${entry.section}::${entry.day}::${entry.subject}`)
   }
 
-  function tryPlace(lesson) {
+  function tryPlace(lesson: Omit<InternalLesson, 'id'>): RoutineEntry | null {
     const sdKey = `${lesson.classId}::${lesson.section}::${lesson.subject}`
-    const daysUsed = subjectDayUsed.get(sdKey) || new Set()
+    const daysUsed = subjectDayUsed.get(sdKey) || new Set<string>()
     
-    const preferredSlots = []
-    const fallbackSlots = []
+    const preferredSlots: { day: string, period: number }[] = []
+    const fallbackSlots: { day: string, period: number }[] = []
     
     for (const day of days) {
       for (let period = 1; period <= lesson.periodsPerDay; period++) {
@@ -323,7 +471,7 @@ function attemptSchedule(days, classes, subjects, requirements, teachers, qualif
     return null
   }
 
-  const placedStack = []
+  const placedStack: RoutineEntry[] = []
   const RETRY_BUDGET = 8
 
   for (const lesson of lessons) {
@@ -331,7 +479,7 @@ function attemptSchedule(days, classes, subjects, requirements, teachers, qualif
     let retries = 0
 
     while (!placed && retries < RETRY_BUDGET && placedStack.length > 0) {
-      const idxFromEnd = [...placedStack].reverse().findIndex((p) => lesson.candidateTeachers.includes(p.teacherId))
+      const idxFromEnd = [...placedStack].reverse().findIndex((p) => p.teacherId && lesson.candidateTeachers.includes(p.teacherId))
       if (idxFromEnd === -1) break
       const realIdx = placedStack.length - 1 - idxFromEnd
       const [victim] = placedStack.splice(realIdx, 1)
@@ -344,7 +492,7 @@ function attemptSchedule(days, classes, subjects, requirements, teachers, qualif
         periodsPerDay: classes.find((c) => c.id === victim.classId)?.periodsPerDay || 6,
         section: victim.section,
         subject: victim.subject,
-        candidateTeachers: [victim.teacherId],
+        candidateTeachers: victim.teacherId ? [victim.teacherId] : [],
       })
       if (victimReplaced) {
         commit(victimReplaced)
@@ -389,17 +537,24 @@ function attemptSchedule(days, classes, subjects, requirements, teachers, qualif
   }
 }
 
-function buildTeacherRoutines(entries, teachers) {
-  const byTeacher = new Map(teachers.map((t) => [t.id, []]))
+function buildTeacherRoutines(entries: RoutineEntry[], teachers: TeacherData[]): Map<string, RoutineEntry[]> {
+  const byTeacher = new Map<string, RoutineEntry[]>(teachers.map((t) => [t.id, []]))
   for (const e of entries) {
-    if (!byTeacher.has(e.teacherId)) byTeacher.set(e.teacherId, [])
-    byTeacher.get(e.teacherId).push(e)
+    if (e.teacherId && !byTeacher.has(e.teacherId)) byTeacher.set(e.teacherId, [])
+    if (e.teacherId) {
+      byTeacher.get(e.teacherId)!.push(e)
+    }
   }
   return byTeacher
 }
 
-function buildClassRoutines(days, classes, entries, unscheduled) {
-  const byClass = new Map()
+function buildClassRoutines(
+  days: string[],
+  classes: ClassData[],
+  entries: RoutineEntry[],
+  unscheduled: UnscheduledLesson[]
+): Map<string, RoutineEntry[]> {
+  const byClass = new Map<string, RoutineEntry[]>()
   for (const cls of classes) {
     const sections = cls.sections.length > 0 ? cls.sections : ['']
     for (const section of sections) byClass.set(sectionKeyOf(cls.id, section), [])
@@ -407,14 +562,14 @@ function buildClassRoutines(days, classes, entries, unscheduled) {
   for (const e of entries) {
     const k = sectionKeyOf(e.classId, e.section)
     if (!byClass.has(k)) byClass.set(k, [])
-    byClass.get(k).push(e)
+    byClass.get(k)!.push(e)
   }
 
-  const neededMap = new Map()
+  const neededMap = new Map<string, Map<string, number>>()
   for (const u of unscheduled) {
     const k = sectionKeyOf(u.classId, u.section)
     if (!neededMap.has(k)) neededMap.set(k, new Map())
-    const m = neededMap.get(k)
+    const m = neededMap.get(k)!
     m.set(u.subject, (m.get(u.subject) || 0) + 1)
   }
 
@@ -427,7 +582,7 @@ function buildClassRoutines(days, classes, entries, unscheduled) {
 
       const list = byClass.get(k) || []
       const occupied = new Set(list.map((e) => `${e.day}::${e.period}`))
-      const freeSlots = []
+      const freeSlots: { day: string, period: number }[] = []
       
       for (const day of days) {
         for (let period = 1; period <= cls.periodsPerDay; period++) {
@@ -472,7 +627,7 @@ const WEEK_TYPE_OPTIONS = [
   { label: '7-Day Week (Sat – Fri)', value: '7' },
 ]
 
-const WEEK_TYPE_DAYS = {
+const WEEK_TYPE_DAYS: Record<string, string[]> = {
   '5': ALL_DAYS.slice(1, 6), // Sunday - Thursday
   '6': ALL_DAYS.slice(0, 6), // Saturday - Thursday
   '7': ALL_DAYS.slice(0, 7), // Saturday - Friday
@@ -481,23 +636,23 @@ const WEEK_TYPE_DAYS = {
 // ---------------------------------------------------------------------------
 // UI component
 // ---------------------------------------------------------------------------
-const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
+const uid = (): string => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
 export default function RoutineBuilderClient() {
-  const [activeTab, setActiveTab] = useState('setup')
+  const [activeTab, setActiveTab] = useState<string>('setup')
 
-  const [weekType, setWeekType] = useState('7')
+  const [weekType, setWeekType] = useState<string>('7')
   // Default to Friday as holiday in BD format
-  const [holidays, setHolidays] = useState(['Friday'])
+  const [holidays, setHolidays] = useState<string[]>(['Friday'])
   
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([]) 
-  const [requirements, setRequirements] = useState([]) 
-  const [teachers, setTeachers] = useState([]) 
-  const [qualifications, setQualifications] = useState([]) 
-  const [preferredAssignments, setPreferredAssignments] = useState([])
+  const [classes, setClasses] = useState<ClassData[]>([])
+  const [subjects, setSubjects] = useState<SubjectData[]>([]) 
+  const [requirements, setRequirements] = useState<RequirementData[]>([]) 
+  const [teachers, setTeachers] = useState<TeacherData[]>([]) 
+  const [qualifications, setQualifications] = useState<QualificationData[]>([]) 
+  const [preferredAssignments, setPreferredAssignments] = useState<PreferredAssignmentData[]>([])
 
-  const [result, setResult] = useState(null)
+  const [result, setResult] = useState<GenerationResult | null>(null)
 
   const weekDays = WEEK_TYPE_DAYS[weekType]
   const days = useMemo(() => weekDays.filter((d) => !holidays.includes(d)), [weekDays, holidays])
@@ -583,8 +738,34 @@ export default function RoutineBuilderClient() {
 }
 
 // ---------------------------------------------------------------------------
-// SETUP TAB
+// SETUP TAB COMPONENTS
 // ---------------------------------------------------------------------------
+
+interface SetupTabProps {
+  weekType: string
+  setWeekType: React.Dispatch<React.SetStateAction<string>>
+  weekDays: string[]
+  holidays: string[]
+  setHolidays: React.Dispatch<React.SetStateAction<string[]>>
+  days: string[]
+  classes: ClassData[]
+  setClasses: React.Dispatch<React.SetStateAction<ClassData[]>>
+  maxClassPeriods: number
+  subjects: SubjectData[]
+  setSubjects: React.Dispatch<React.SetStateAction<SubjectData[]>>
+  requirements: RequirementData[]
+  setRequirements: React.Dispatch<React.SetStateAction<RequirementData[]>>
+  teachers: TeacherData[]
+  setTeachers: React.Dispatch<React.SetStateAction<TeacherData[]>>
+  qualifications: QualificationData[]
+  setQualifications: React.Dispatch<React.SetStateAction<QualificationData[]>>
+  preferredAssignments: PreferredAssignmentData[]
+  setPreferredAssignments: React.Dispatch<React.SetStateAction<PreferredAssignmentData[]>>
+  warnings: string[]
+  deficits: Deficits
+  onGenerate: () => void
+}
+
 function SetupTab({
   weekType, setWeekType, weekDays, holidays, setHolidays, days,
   classes, setClasses, maxClassPeriods,
@@ -594,7 +775,7 @@ function SetupTab({
   qualifications, setQualifications,
   preferredAssignments, setPreferredAssignments,
   warnings, deficits, onGenerate,
-}) {
+}: SetupTabProps) {
   return (
     <div className="space-y-10">
       <WeekAndHolidays weekType={weekType} setWeekType={setWeekType} weekDays={weekDays} holidays={holidays} setHolidays={setHolidays} days={days} />
@@ -643,13 +824,22 @@ function SetupTab({
   )
 }
 
-function WeekAndHolidays({ weekType, setWeekType, weekDays, holidays, setHolidays, days }) {
-  function toggleHoliday(day) {
+interface WeekAndHolidaysProps {
+  weekType: string
+  setWeekType: React.Dispatch<React.SetStateAction<string>>
+  weekDays: string[]
+  holidays: string[]
+  setHolidays: React.Dispatch<React.SetStateAction<string[]>>
+  days: string[]
+}
+
+function WeekAndHolidays({ weekType, setWeekType, weekDays, holidays, setHolidays, days }: WeekAndHolidaysProps) {
+  function toggleHoliday(day: string) {
     setHolidays(holidays.includes(day) ? holidays.filter((d) => d !== day) : [...holidays, day])
   }
 
-  function handleWeekTypeChange(value) {
-    const nextDays = WEEK_TYPE_DAYS[value]
+  function handleWeekTypeChange(value: string) {
+    const nextDays = WEEK_TYPE_DAYS[value] || []
     setHolidays(holidays.filter((d) => nextDays.includes(d)))
     setWeekType(value)
   }
@@ -709,24 +899,34 @@ function WeekAndHolidays({ weekType, setWeekType, weekDays, holidays, setHoliday
   )
 }
 
-function ClassesSection({ classes, setClasses, days, requirements, setRequirements, preferredAssignments, setPreferredAssignments }) {
-  const PREDEFINED = ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5'];
-  const [globalPeriods, setGlobalPeriods] = useState('6')
-  const [customName, setCustomName] = useState('')
-  const [sectionInput, setSectionInput] = useState({})
+interface ClassesSectionProps {
+  classes: ClassData[]
+  setClasses: React.Dispatch<React.SetStateAction<ClassData[]>>
+  days: string[]
+  requirements: RequirementData[]
+  setRequirements: React.Dispatch<React.SetStateAction<RequirementData[]>>
+  preferredAssignments: PreferredAssignmentData[]
+  setPreferredAssignments: React.Dispatch<React.SetStateAction<PreferredAssignmentData[]>>
+}
 
-  function handleGlobalPeriodsChange(val) {
+function ClassesSection({ classes, setClasses, days, requirements, setRequirements, preferredAssignments, setPreferredAssignments }: ClassesSectionProps) {
+  const PREDEFINED = ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5'];
+  const [globalPeriods, setGlobalPeriods] = useState<string>('6')
+  const [customName, setCustomName] = useState<string>('')
+  const [sectionInput, setSectionInput] = useState<Record<string, string>>({})
+
+  function handleGlobalPeriodsChange(val: string) {
     setGlobalPeriods(val)
     const num = Number(val) || 6
     setClasses(classes.map(c => ({ ...c, periodsPerDay: num })))
   }
 
-  function handleClassPeriodChange(classId, val) {
+  function handleClassPeriodChange(classId: string, val: string) {
     const num = Number(val) || 1
     setClasses(classes.map(c => c.id === classId ? { ...c, periodsPerDay: num } : c))
   }
 
-  function toggleClass(name) {
+  function toggleClass(name: string) {
     const exists = classes.find(c => c.name === name)
     if (exists) {
       removeClass(exists.id)
@@ -742,20 +942,20 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
     setCustomName('')
   }
 
-  function removeClass(id) {
+  function removeClass(id: string) {
     setClasses(classes.filter((c) => c.id !== id))
     setRequirements(requirements.filter((r) => r.classId !== id))
     setPreferredAssignments(preferredAssignments.filter((p) => p.classId !== id))
   }
 
-  function addSection(classId) {
+  function addSection(classId: string) {
     const section = (sectionInput[classId] || '').trim()
     if (!section) return
     setClasses(classes.map((c) => (c.id === classId ? { ...c, sections: [...c.sections, section] } : c)))
     setSectionInput({ ...sectionInput, [classId]: '' })
   }
 
-  function removeSection(classId, section) {
+  function removeSection(classId: string, section: string) {
     setClasses(classes.map((c) => (c.id === classId ? { ...c, sections: c.sections.filter((s) => s !== section) } : c)))
     setRequirements(requirements.filter((r) => !(r.classId === classId && r.section === section)))
     setPreferredAssignments(preferredAssignments.filter((p) => !(p.classId === classId && p.section === section)))
@@ -878,10 +1078,21 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
   )
 }
 
-function SubjectsSection({ subjects, setSubjects, requirements, setRequirements, qualifications, setQualifications, preferredAssignments, setPreferredAssignments }) {
-  const [name, setName] = useState('')
-  const [editingId, setEditingId] = useState(null)
-  const [editName, setEditName] = useState('')
+interface SubjectsSectionProps {
+  subjects: SubjectData[]
+  setSubjects: React.Dispatch<React.SetStateAction<SubjectData[]>>
+  requirements: RequirementData[]
+  setRequirements: React.Dispatch<React.SetStateAction<RequirementData[]>>
+  qualifications: QualificationData[]
+  setQualifications: React.Dispatch<React.SetStateAction<QualificationData[]>>
+  preferredAssignments: PreferredAssignmentData[]
+  setPreferredAssignments: React.Dispatch<React.SetStateAction<PreferredAssignmentData[]>>
+}
+
+function SubjectsSection({ subjects, setSubjects, requirements, setRequirements, qualifications, setQualifications, preferredAssignments, setPreferredAssignments }: SubjectsSectionProps) {
+  const [name, setName] = useState<string>('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState<string>('')
 
   function addSubject() {
     if (!name.trim()) return
@@ -893,7 +1104,7 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
     setName('')
   }
 
-  function startEdit(s) {
+  function startEdit(s: SubjectData) {
     setEditingId(s.id)
     setEditName(s.name)
   }
@@ -908,7 +1119,7 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
     setEditingId(null)
   }
 
-  function removeSubject(id) {
+  function removeSubject(id: string) {
     setSubjects(subjects.filter((s) => s.id !== id))
     setRequirements(requirements.filter((r) => r.subjectId !== id))
     setQualifications(qualifications.filter((q) => q.subjectId !== id))
@@ -968,7 +1179,15 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
   )
 }
 
-function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirements, days }) {
+interface ClassCurriculumMatrixProps {
+  classes: ClassData[]
+  subjects: SubjectData[]
+  requirements: RequirementData[]
+  setRequirements: React.Dispatch<React.SetStateAction<RequirementData[]>>
+  days: string[]
+}
+
+function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirements, days }: ClassCurriculumMatrixProps) {
   const columns = useMemo(() => {
     return classes.flatMap(c => 
       c.sections.length > 0 
@@ -977,7 +1196,7 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
     )
   }, [classes, days.length])
 
-  function toggleRequirement(classId, section, subjectId, checked) {
+  function toggleRequirement(classId: string, section: string, subjectId: string, checked: boolean) {
     if (checked) {
       setRequirements([...requirements, { id: uid(), classId, section, subjectId, periodsPerWeek: 1 }])
     } else {
@@ -985,7 +1204,7 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
     }
   }
 
-  function updateRequirementPeriods(classId, section, subjectId, periods) {
+  function updateRequirementPeriods(classId: string, section: string, subjectId: string, periods: string) {
     let num = Number(periods)
     if (num > days.length) num = days.length // Strictly capped to prevent duplicate subject in same day
     
@@ -1053,7 +1272,7 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
                             onChange={(e) => toggleRequirement(col.classId, col.section, subj.id, e.target.checked)}
                             className="w-4 h-4 text-[#6b4c9a] bg-white border-stone-300 rounded-sm focus:ring-[#6b4c9a] cursor-pointer accent-[#6b4c9a]"
                           />
-                          {isChecked && (
+                          {isChecked && req && (
                             <input
                               type="number"
                               min="1"
@@ -1078,13 +1297,23 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
   )
 }
 
-function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualifications, setQualifications, preferredAssignments, setPreferredAssignments }) {
-  const [name, setName] = useState('')
-  const [maxPeriodsPerDay, setMaxPeriodsPerDay] = useState('')
+interface TeachersSectionProps {
+  teachers: TeacherData[]
+  setTeachers: React.Dispatch<React.SetStateAction<TeacherData[]>>
+  maxClassPeriods: number
+  qualifications: QualificationData[]
+  setQualifications: React.Dispatch<React.SetStateAction<QualificationData[]>>
+  preferredAssignments: PreferredAssignmentData[]
+  setPreferredAssignments: React.Dispatch<React.SetStateAction<PreferredAssignmentData[]>>
+}
+
+function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualifications, setQualifications, preferredAssignments, setPreferredAssignments }: TeachersSectionProps) {
+  const [name, setName] = useState<string>('')
+  const [maxPeriodsPerDay, setMaxPeriodsPerDay] = useState<string>('')
   
-  const [editingId, setEditingId] = useState(null)
-  const [editName, setEditName] = useState('')
-  const [editPeriods, setEditPeriods] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState<string>('')
+  const [editPeriods, setEditPeriods] = useState<string>('')
 
   function addTeacher() {
     const p = Number(maxPeriodsPerDay)
@@ -1104,7 +1333,7 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
     setMaxPeriodsPerDay('')
   }
 
-  function startEdit(t) {
+  function startEdit(t: TeacherData) {
     setEditingId(t.id)
     setEditName(t.name)
     setEditPeriods(String(Math.min(t.maxPeriodsPerDay, maxClassPeriods)))
@@ -1128,7 +1357,7 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
     setEditingId(null)
   }
 
-  function removeTeacher(id) {
+  function removeTeacher(id: string) {
     setTeachers(teachers.filter((t) => t.id !== id))
     setQualifications(qualifications.filter((q) => q.teacherId !== id))
     setPreferredAssignments(preferredAssignments.filter((p) => p.teacherId !== id))
@@ -1210,8 +1439,15 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
   )
 }
 
-function TeacherSubjectCheckmarks({ teachers, subjects, qualifications, setQualifications }) {
-  function toggleQual(teacherId, subjectId) {
+interface TeacherSubjectCheckmarksProps {
+  teachers: TeacherData[]
+  subjects: SubjectData[]
+  qualifications: QualificationData[]
+  setQualifications: React.Dispatch<React.SetStateAction<QualificationData[]>>
+}
+
+function TeacherSubjectCheckmarks({ teachers, subjects, qualifications, setQualifications }: TeacherSubjectCheckmarksProps) {
+  function toggleQual(teacherId: string, subjectId: string) {
     const exists = qualifications.find(q => q.teacherId === teacherId && q.subjectId === subjectId)
     if (exists) {
       setQualifications(qualifications.filter(q => q.id !== exists.id))
@@ -1260,8 +1496,14 @@ function TeacherSubjectCheckmarks({ teachers, subjects, qualifications, setQuali
   )
 }
 
-function TeacherCapacityDashboard({ maxClassPeriods, deficits }) {
-  const [calcPeriodsPerDay, setCalcPeriodsPerDay] = useState('')
+interface TeacherCapacityDashboardProps {
+  maxClassPeriods: number
+  deficits: Deficits
+  days: string[]
+}
+
+function TeacherCapacityDashboard({ maxClassPeriods, deficits }: TeacherCapacityDashboardProps) {
+  const [calcPeriodsPerDay, setCalcPeriodsPerDay] = useState<string>('')
 
   const { totalReq, totalCap, overallDeficit, subjectStats, unassignedCurriculum } = deficits
 
@@ -1401,12 +1643,22 @@ function TeacherCapacityDashboard({ maxClassPeriods, deficits }) {
   )
 }
 
-function PreferredTeacherSection({ classes, subjects, requirements, teachers, qualifications, preferredAssignments, setPreferredAssignments }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [classId, setClassId] = useState('')
-  const [section, setSection] = useState('')
-  const [subjectId, setSubjectId] = useState('')
-  const [teacherId, setTeacherId] = useState('')
+interface PreferredTeacherSectionProps {
+  classes: ClassData[]
+  subjects: SubjectData[]
+  requirements: RequirementData[]
+  teachers: TeacherData[]
+  qualifications: QualificationData[]
+  preferredAssignments: PreferredAssignmentData[]
+  setPreferredAssignments: React.Dispatch<React.SetStateAction<PreferredAssignmentData[]>>
+}
+
+function PreferredTeacherSection({ classes, subjects, requirements, teachers, qualifications, preferredAssignments, setPreferredAssignments }: PreferredTeacherSectionProps) {
+  const [isOpen, setIsOpen] = useState<boolean>(false)
+  const [classId, setClassId] = useState<string>('')
+  const [section, setSection] = useState<string>('')
+  const [subjectId, setSubjectId] = useState<string>('')
+  const [teacherId, setTeacherId] = useState<string>('')
 
   const selectedClass = classes.find((c) => c.id === classId)
   const sectionOptions = selectedClass?.sections || []
@@ -1430,7 +1682,7 @@ function PreferredTeacherSection({ classes, subjects, requirements, teachers, qu
     setTeacherId('')
   }
 
-  function removePreferred(id) {
+  function removePreferred(id: string) {
     setPreferredAssignments(preferredAssignments.filter((p) => p.id !== id))
   }
 
@@ -1550,12 +1802,22 @@ function PreferredTeacherSection({ classes, subjects, requirements, teachers, qu
 }
 
 // ---------------------------------------------------------------------------
-// VIEW TAB
+// VIEW TAB COMPONENTS
 // ---------------------------------------------------------------------------
-function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods }) {
-  const [mode, setMode] = useState('all_teachers')
-  const [selectedTeacher, setSelectedTeacher] = useState('')
-  const [selectedClassSection, setSelectedClassSection] = useState('')
+
+interface ViewTabProps {
+  days: string[]
+  classes: ClassData[]
+  teachers: TeacherData[]
+  result: GenerationResult | null
+  onGenerate: () => void
+  maxClassPeriods: number
+}
+
+function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods }: ViewTabProps) {
+  const [mode, setMode] = useState<string>('all_teachers')
+  const [selectedTeacher, setSelectedTeacher] = useState<string>('')
+  const [selectedClassSection, setSelectedClassSection] = useState<string>('')
 
   if (!result) return null
 
@@ -1567,12 +1829,12 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
   const activeTeacher = selectedTeacher || teachers[0]?.id || ''
   const activeClassSection = selectedClassSection || classSectionOptions[0]?.key || ''
 
-  const statusStyles = {
+  const statusStyles: Record<string, string> = {
     success: 'bg-[#f2f7ee] text-[#4a6b3a] border border-[#d9e6cd]',
     success_with_warnings: 'bg-[#fdf6ec] text-[#9a6a1f] border border-[#f0dfc0]',
     no_valid_solution: 'bg-[#fcf2f1] text-[#b4483e] border border-[#f2d5d2]',
   }
-  const statusLabel = {
+  const statusLabel: Record<string, string> = {
     success: 'Generated successfully',
     success_with_warnings: 'Generated — some periods still need a teacher',
     no_valid_solution: 'Could not schedule anything',
@@ -1699,10 +1961,19 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
   )
 }
 
-function TeacherWorkloadSummary({ entries, teachers, days, maxClassPeriods }) {
+interface TeacherWorkloadSummaryProps {
+  entries: RoutineEntry[]
+  teachers: TeacherData[]
+  days: string[]
+  maxClassPeriods: number
+}
+
+function TeacherWorkloadSummary({ entries, teachers, days, maxClassPeriods }: TeacherWorkloadSummaryProps) {
   const stats = useMemo(() => {
-    const counts = new Map()
-    entries.forEach(e => counts.set(e.teacherId, (counts.get(e.teacherId) || 0) + 1))
+    const counts = new Map<string, number>()
+    entries.forEach(e => {
+      if (e.teacherId) counts.set(e.teacherId, (counts.get(e.teacherId) || 0) + 1)
+    })
     
     return teachers.map(t => {
       const assigned = counts.get(t.id) || 0
@@ -1748,9 +2019,17 @@ function TeacherWorkloadSummary({ entries, teachers, days, maxClassPeriods }) {
   )
 }
 
-function TeacherGrid({ days, periods, entries, title, compact = false }) {
+interface TeacherGridProps {
+  days: string[]
+  periods: number
+  entries: RoutineEntry[]
+  title: string
+  compact?: boolean
+}
+
+function TeacherGrid({ days, periods, entries, title, compact = false }: TeacherGridProps) {
   const periodList = Array.from({ length: periods }, (_, i) => i + 1)
-  const at = (day, period) => entries.find((e) => e.day === day && e.period === period)
+  const at = (day: string, period: number) => entries.find((e) => e.day === day && e.period === period)
 
   return (
     <div className={`break-inside-avoid ${compact ? 'mb-8' : ''}`}>
@@ -1793,9 +2072,16 @@ function TeacherGrid({ days, periods, entries, title, compact = false }) {
   )
 }
 
-function ClassGrid({ days, periods, entries, title }) {
+interface ClassGridProps {
+  days: string[]
+  periods: number
+  entries: RoutineEntry[]
+  title: string
+}
+
+function ClassGrid({ days, periods, entries, title }: ClassGridProps) {
   const periodList = Array.from({ length: periods }, (_, i) => i + 1)
-  const at = (day, period) => entries.find((e) => e.day === day && e.period === period)
+  const at = (day: string, period: number) => entries.find((e) => e.day === day && e.period === period)
 
   return (
     <div className="break-inside-avoid">

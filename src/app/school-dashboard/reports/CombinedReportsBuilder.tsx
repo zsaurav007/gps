@@ -2,34 +2,101 @@
 
 import { useState, useMemo } from 'react'
 
-type ExamWeight = { examId: string; maxMark: number; weight: number }
-type CustomField = { id: string; name: string; maxMark: number; weight: number }
-type CustomFieldData = Record<string, Record<string, number>> 
+// ==================================================================
+// Type Definitions
+// ==================================================================
+export type ID = string | number
 
-export default function CombinedReportsBuilder({ classes, exams, students, examConfigs, fetchMarksForExams }: any) {
-  const [step, setStep] = useState(1)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isFetchingMarks, setIsFetchingMarks] = useState(false)
-  const [selectedStudentReport, setSelectedStudentReport] = useState<any>(null) 
+export interface Class {
+  id: ID
+  name: string
+}
 
-  const [selectedClassId, setSelectedClassId] = useState('')
+export interface Exam {
+  id: string
+  class_id: ID
+  name: string
+}
+
+export interface Student {
+  id: string
+  class_id: ID
+  first_name: string
+  last_name: string
+  enrollment_id: string
+}
+
+export interface ExamConfig {
+  exam_id: string
+  total_max_marks?: number | string
+}
+
+export interface Mark {
+  exam_id: string
+  student_id: string
+  total_obtained: number | string
+  isAbsent?: boolean
+}
+
+export interface CombinedReportsBuilderProps {
+  classes: Class[]
+  exams: Exam[]
+  students: Student[]
+  examConfigs: ExamConfig[]
+  fetchMarksForExams: (examIds: string[]) => Promise<Mark[]>
+}
+
+export type ExamWeight = { examId: string; maxMark: number; weight: number }
+export type CustomField = { id: string; name: string; maxMark: number; weight: number }
+export type CustomFieldData = Record<string, Record<string, number>>
+
+export interface LedgerBreakdown {
+  name: string | undefined
+  raw: number | string // 'ABS', 'Missing', or actual number
+  maxMark: number
+  contribution: string // Result of .toFixed(2)
+  weight: number
+}
+
+export interface LedgerRow {
+  student: Student
+  totalScore: number
+  breakdown: LedgerBreakdown[]
+}
+
+// ==================================================================
+// Component
+// ==================================================================
+export default function CombinedReportsBuilder({ 
+  classes, 
+  exams, 
+  students, 
+  examConfigs, 
+  fetchMarksForExams 
+}: CombinedReportsBuilderProps) {
+  const [step, setStep] = useState<number>(1)
+  const [isProcessing, setIsProcessing] = useState<boolean>(false)
+  const [isFetchingMarks, setIsFetchingMarks] = useState<boolean>(false)
+  const [selectedStudentReport, setSelectedStudentReport] = useState<LedgerRow | null>(null)
+
+  const [selectedClassId, setSelectedClassId] = useState<string | number>('')
   const [selectedWeights, setSelectedWeights] = useState<ExamWeight[]>([])
   
   // Pre-Flight Data & Custom Fields
-  const [rawMarksData, setRawMarksData] = useState<any[]>([])
+  const [rawMarksData, setRawMarksData] = useState<Mark[]>([])
   const [missingStats, setMissingStats] = useState<{examName: string; missing: number}[]>([])
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [customMarks, setCustomMarks] = useState<CustomFieldData>({})
-  const [customFieldSearch, setCustomFieldSearch] = useState('')
+  const [customFieldSearch, setCustomFieldSearch] = useState<string>('')
   
-  const [compiledLedger, setCompiledLedger] = useState<any[]>([])
+  const [compiledLedger, setCompiledLedger] = useState<LedgerRow[]>([])
 
-  const availableExams = useMemo(() => exams.filter((e: any) => e.class_id === selectedClassId), [exams, selectedClassId])
-  const classStudents = useMemo(() => students.filter((s: any) => s.class_id === selectedClassId), [students, selectedClassId])
+  const availableExams = useMemo(() => exams.filter(e => e.class_id === selectedClassId), [exams, selectedClassId])
+  const classStudents = useMemo(() => students.filter(s => s.class_id === selectedClassId), [students, selectedClassId])
 
   const filteredStudentsForCustomFields = useMemo(() => {
     if (!customFieldSearch) return classStudents
-    return classStudents.filter((s: any) => 
+    return classStudents.filter(s => 
       `${s.first_name} ${s.last_name} ${s.enrollment_id}`.toLowerCase().includes(customFieldSearch.toLowerCase())
     )
   }, [classStudents, customFieldSearch])
@@ -38,19 +105,18 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
   // WIZARD ACTIONS
   // ==================================================================
 
-    const toggleExamSelection = (examId: string) => {
-        setSelectedWeights(prev => {
-        const exists = prev.find(w => w.examId === examId)
-        if (exists) return prev.filter(w => w.examId !== examId)
-        
-        // FIX: Added (examConfigs || []) to prevent undefined errors
-        const safeConfigs = examConfigs || []
-        const configsForExam = safeConfigs.filter((c: any) => c.exam_id === examId)
-        const totalMax = configsForExam.reduce((sum: number, c: any) => sum + Number(c.total_max_marks || 0), 0)
+  const toggleExamSelection = (examId: string) => {
+    setSelectedWeights(prev => {
+      const exists = prev.find(w => w.examId === examId)
+      if (exists) return prev.filter(w => w.examId !== examId)
+      
+      const safeConfigs = examConfigs || []
+      const configsForExam = safeConfigs.filter(c => c.exam_id === examId)
+      const totalMax = configsForExam.reduce((sum, c) => sum + Number(c.total_max_marks || 0), 0)
 
-        return [...prev, { examId, maxMark: totalMax > 0 ? totalMax : 100, weight: 25 }] 
-        })
-    }
+      return [...prev, { examId, maxMark: totalMax > 0 ? totalMax : 100, weight: 25 }] 
+    })
+  }
 
   const updateExamConfig = (examId: string, key: 'maxMark' | 'weight', value: number) => {
     setSelectedWeights(prev => prev.map(w => w.examId === examId ? { ...w, [key]: value } : w))
@@ -66,10 +132,10 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
 
       const stats: {examName: string; missing: number}[] = []
       selectedWeights.forEach(config => {
-        const examObj = availableExams.find((e: any) => e.id === config.examId)
-        const marksForThisExam = fetchedMarks.filter((m: any) => m.exam_id === config.examId)
+        const examObj = availableExams.find(e => e.id === config.examId)
+        const marksForThisExam = fetchedMarks.filter(m => m.exam_id === config.examId)
         
-        const studentsWithMarks = new Set(marksForThisExam.map((m: any) => m.student_id))
+        const studentsWithMarks = new Set(marksForThisExam.map(m => m.student_id))
         const missingCount = classStudents.length - studentsWithMarks.size
         
         if (missingCount > 0) {
@@ -125,13 +191,13 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
   const compileFinalLedger = async () => {
     setIsProcessing(true)
     try {
-      const finalLedger = classStudents.map((student: any) => {
+      const finalLedger = classStudents.map((student) => {
         let totalNormalizedScore = 0
-        let breakdown: any = []
+        const breakdown: LedgerBreakdown[] = []
 
         selectedWeights.forEach(config => {
-          const examObj = availableExams.find((e: any) => e.id === config.examId)
-          const studentMark = rawMarksData.find((m: any) => m.student_id === student.id && m.exam_id === config.examId)
+          const examObj = availableExams.find(e => e.id === config.examId)
+          const studentMark = rawMarksData.find(m => m.student_id === student.id && m.exam_id === config.examId)
           
           const rawObtained = studentMark && !studentMark.isAbsent ? Number(studentMark.total_obtained) : 0
           
@@ -182,7 +248,7 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
   // ==================================================================
   if (selectedStudentReport) {
     const r = selectedStudentReport
-    const totalWeightAssigned = r.breakdown.reduce((sum: number, b: any) => sum + b.weight, 0)
+    const totalWeightAssigned = r.breakdown.reduce((sum, b) => sum + b.weight, 0)
 
     return (
       <div className="bg-white min-h-screen font-sans print:p-0">
@@ -226,7 +292,7 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-200">
-                {r.breakdown.map((b: any, idx: number) => (
+                {r.breakdown.map((b, idx) => (
                   <tr key={idx}>
                     <td className="py-4 px-5 font-bold text-stone-800 border-r border-stone-200">{b.name}</td>
                     <td className="py-4 px-5 font-medium text-stone-600 border-r border-stone-200">
@@ -285,7 +351,7 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
                 className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] shadow-sm"
               >
                 <option value="">-- Choose Class --</option>
-                {classes.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <button 
@@ -308,7 +374,7 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
 
             <div className="space-y-3">
               {availableExams.length === 0 && <p className="text-sm text-stone-500 italic">No exams found for this class.</p>}
-              {availableExams.map((exam: any) => {
+              {availableExams.map((exam) => {
                 const config = selectedWeights.find(w => w.examId === exam.id)
                 const isSelected = !!config
 
@@ -450,7 +516,7 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
                         <td colSpan={customFields.length + 1} className="py-8 text-center text-xs text-stone-400 italic">No students match your search.</td>
                       </tr>
                     ) : (
-                      filteredStudentsForCustomFields.map((student: any) => (
+                      filteredStudentsForCustomFields.map((student) => (
                         <tr key={student.id} className="hover:bg-stone-50/50">
                           <td className="py-3 px-4 text-xs font-bold text-stone-900 border-r border-stone-100">
                             {student.enrollment_id} - {student.first_name} {student.last_name}
@@ -514,7 +580,7 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
                   <tr>
                     <th className="py-4 px-4 font-bold tracking-widest text-[10px] uppercase border-r border-stone-700">Rank</th>
                     <th className="py-4 px-4 font-bold tracking-widest text-[10px] uppercase border-r border-stone-700">Student</th>
-                    {compiledLedger[0]?.breakdown.map((b: any, i: number) => (
+                    {compiledLedger[0]?.breakdown.map((b, i) => (
                       <th key={i} className="py-4 px-4 border-r border-stone-700">
                         <div className="font-bold tracking-widest text-[10px] uppercase">{b.name}</div>
                         <div className="text-stone-400 text-[8px] mt-1 tracking-wider">Weight: {b.weight}%</div>
@@ -525,12 +591,12 @@ export default function CombinedReportsBuilder({ classes, exams, students, examC
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 bg-white">
-                  {compiledLedger.map((row: any, index: number) => (
+                  {compiledLedger.map((row, index) => (
                     <tr key={row.student.id} className="hover:bg-stone-50">
                       <td className="py-3 px-4 font-bold text-stone-500 border-r border-stone-100">#{index + 1}</td>
                       <td className="py-3 px-4 font-bold text-stone-900 border-r border-stone-100">{row.student.first_name} {row.student.last_name}</td>
                       
-                      {row.breakdown.map((b: any, i: number) => (
+                      {row.breakdown.map((b, i) => (
                         <td key={i} className="py-3 px-4 border-r border-stone-100">
                           <div className="font-bold text-[#6b4c9a]">
                             Converted: {b.contribution} <span className="text-[10px] text-stone-400 font-normal">/ {b.weight}%</span>

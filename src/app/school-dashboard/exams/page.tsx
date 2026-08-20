@@ -1,0 +1,70 @@
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { decrypt } from '@/lib/auth/jwt'
+import { createClient } from '@/lib/supabase/server'
+import CreateExamForm from './CreateExamForm'
+import ExamSetupManager from './ExamSetupManager'
+
+export default async function ExamSetupPage() {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get('school_session')?.value
+  if (!sessionCookie) redirect('/login')
+
+  const sessionData = await decrypt(sessionCookie)
+  if (!sessionData) redirect('/login')
+
+  const supabase = await createClient()
+  const schoolId = sessionData.schoolId
+
+  const [
+    { data: exams },
+    { data: classes },
+    { data: subjects },
+    { data: classSubjects },
+    { data: existingConfigs }
+  ] = await Promise.all([
+    supabase.schema('gps').from('exams').select('*').eq('school_id', schoolId).order('created_at', { ascending: false }),
+    supabase.schema('gps').from('classes').select('id, name').eq('school_id', schoolId).order('name', { ascending: true }),
+    supabase.schema('gps').from('subjects').select('id, name').eq('school_id', schoolId),
+    supabase.schema('gps').from('class_subjects').select('class_id, subject_id'),
+    supabase.schema('gps').from('exam_configurations').select('*')
+  ])
+
+  return (
+    <main className="min-h-screen bg-stone-50 p-6 md:p-8 font-sans">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* Header Card */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white p-6 md:p-8 rounded-sm shadow-sm border border-stone-200 border-t-4 border-t-[#6b4c9a] gap-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">Exam Creation & Setup</h1>
+            <p className="text-sm font-medium text-stone-600 mt-2">Create class-specific exams and define flexible grading breakdowns.</p>
+          </div>
+          <Link href="/school-dashboard" className="text-xs uppercase tracking-widest font-bold text-[#6b4c9a] hover:text-[#5a3f82] transition-colors shrink-0 flex items-center gap-2 bg-[#fbf9fc] px-4 py-2.5 rounded-sm border border-[#dad3e3]">
+            &larr; Dashboard
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Sidebar (33% on LG) */}
+          <div className="lg:col-span-4 xl:col-span-3">
+            <CreateExamForm schoolId={schoolId} classes={classes || []} exams={exams || []} />
+          </div>
+          
+          {/* Main Content (66% on LG) */}
+          <div className="lg:col-span-8 xl:col-span-9">
+            <ExamSetupManager 
+              exams={exams || []}
+              classes={classes || []}
+              subjects={subjects || []}
+              classSubjects={classSubjects || []}
+              existingConfigs={existingConfigs || []}
+            />
+          </div>
+        </div>
+
+      </div>
+    </main>
+  )
+}

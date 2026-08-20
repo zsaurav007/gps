@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 
 // --- Professional SVG Icons ---
@@ -71,12 +72,19 @@ export default function AdminSidebar() {
 
           {/* Logo Area */}
           <div className="h-20 px-5 flex items-center shrink-0 border-b border-white/10">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#8563c4] to-[#5a3f82] rounded-sm flex items-center justify-center shrink-0 border border-white/10 shadow-[0_0_18px_rgba(107,76,154,0.55)]">
-              <span className="text-white font-bold text-xl">E</span>
+            <div className="w-10 h-10 bg-white rounded-sm flex items-center justify-center shrink-0 shadow-[0_0_18px_rgba(107,76,154,0.55)] p-1.5 overflow-hidden">
+              <Image 
+                src="/logo.png" 
+                alt="e-Biddaloy Logo" 
+                width={40} 
+                height={40} 
+                className="w-full h-full object-contain"
+                priority
+              />
             </div>
             <span className="ml-4 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 text-white text-sm font-semibold uppercase tracking-wide">
-              Edu<span className="text-[#c3a9ec] font-bold">Sync</span>
-              <span className="block text-[8px] text-[#c9bcdb] tracking-[0.2em] -mt-1 font-normal">Platform Admin</span>
+              e-<span className="text-[#c3a9ec] font-bold">Biddaloy</span>
+              <span className="block text-[8px] text-[#c9bcdb] tracking-[0.2em] -mt-0.5 font-normal">Platform Admin</span>
             </span>
           </div>
 

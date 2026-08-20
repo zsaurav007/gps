@@ -11,12 +11,16 @@ import CombinedReportsBuilder from './CombinedReportsBuilder'
 // ==================================================================
 
 export interface ExamMark {
+  exam_id: string;
+  student_id: string;
+  total_obtained: number | string;
+  isAbsent?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 
 export interface ExamData {
-  id: string | number;
+  id: string;
   name: string;
   class_id: string | number;
   exam_date: string;
@@ -28,10 +32,11 @@ export interface ClassData {
 }
 
 export interface StudentData {
-  id: string | number;
+  id: string;
   first_name: string;
   last_name: string;
   class_id: string | number;
+  enrollment_id: string;
 }
 
 export interface SchoolData {
@@ -75,7 +80,7 @@ export default async function ReportsPage() {
   ] = await Promise.all([
     supabase.schema('gps').from('exams').select('id, name, class_id, exam_date').eq('school_id', schoolId).order('created_at', { ascending: false }),
     supabase.schema('gps').from('classes').select('id, name').eq('school_id', schoolId).order('name', { ascending: true }),
-    supabase.schema('gps').from('students').select('id, first_name, last_name, class_id').eq('school_id', schoolId).order('first_name', { ascending: true }),
+    supabase.schema('gps').from('students').select('id, first_name, last_name, class_id, enrollment_id').eq('school_id', schoolId).order('first_name', { ascending: true }),
     supabase.schema('gps').from('schools').select('name').eq('id', schoolId).single()
   ]) as [
     { data: ExamData[] | null },
@@ -114,6 +119,7 @@ export default async function ReportsPage() {
           classes={classes || []}
           exams={exams || []}
           students={students || []}
+          examConfigs={[]}
           fetchMarksForExams={fetchMarksForExams}
         />
         

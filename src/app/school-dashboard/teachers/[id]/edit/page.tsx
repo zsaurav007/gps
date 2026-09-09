@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase/server'
 import EditTeacherForm from './EditTeacherForm'
 import EditHeadTeacherPhotoForm from './EditHeadTeacherPhotoForm'
 
+export const metadata = {
+  title: 'Routine Builder | School Dashboard',
+}
+
 export default async function EditTeacherPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
   const targetId = resolvedParams.id
@@ -19,7 +23,15 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
 
   const supabase = await createClient()
 
-  // 1. Check if the requested ID belongs to the Head Teacher in school_users
+  // 1. Fetch subjects FIRST, because both Head Teachers and Regular Teachers need this list now
+  const { data: subjects } = await supabase
+    .schema('gps')
+    .from('subjects')
+    .select('id, name')
+    .eq('school_id', sessionData.schoolId)
+    .order('name')
+
+  // 2. Check if the requested ID belongs to the Head Teacher in school_users
   const { data: headTeacher } = await supabase
     .schema('gps')
     .from('school_users')
@@ -29,7 +41,7 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
     .eq('role', 'headmaster')
     .single()
 
-  // 2. If it is the Head Teacher, render the special restricted Photo-Only form
+  // 3. If it is the Head Teacher, render the special restricted form
   if (headTeacher) {
     return (
       <main className="min-h-screen bg-[#FAFAFA] p-3 md:p-5 lg:p-6 font-sans text-stone-900">
@@ -59,7 +71,11 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
           </div>
           
           <div className="bg-white rounded-sm border border-stone-200 p-6 md:p-8 shadow-sm">
-            <EditHeadTeacherPhotoForm schoolId={sessionData.schoolId} headTeacher={headTeacher} />
+            <EditHeadTeacherPhotoForm 
+              schoolId={sessionData.schoolId} 
+              subjects={subjects || []} 
+              headTeacher={headTeacher} 
+            />
           </div>
           
         </div>
@@ -67,7 +83,7 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
     )
   }
 
-  // 3. Otherwise, fetch the regular teacher profile from the teachers table
+  // 4. Otherwise, fetch the regular teacher profile from the teachers table
   const { data: teacher } = await supabase
     .schema('gps')
     .from('teachers')
@@ -79,14 +95,6 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
   if (!teacher) {
     redirect('/school-dashboard/teachers')
   }
-
-  // Fetch subjects for standard teacher assignment
-  const { data: subjects } = await supabase
-    .schema('gps')
-    .from('subjects')
-    .select('id, name')
-    .eq('school_id', sessionData.schoolId)
-    .order('name')
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] p-3 md:p-5 lg:p-6 font-sans text-stone-900">
@@ -116,7 +124,11 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
         </div>
         
         <div className="bg-white rounded-sm border border-stone-200 p-6 md:p-8 shadow-sm">
-          <EditTeacherForm schoolId={sessionData.schoolId} subjects={subjects || []} teacher={teacher} />
+          <EditTeacherForm 
+            schoolId={sessionData.schoolId} 
+            subjects={subjects || []} 
+            teacher={teacher} 
+          />
         </div>
         
       </div>

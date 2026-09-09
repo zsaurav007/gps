@@ -40,7 +40,8 @@ export default async function TeachersDirectoryPage() {
       id: headTeacher.id,
       full_name: headTeacher.full_name,
       photo_url: headTeacher.photo_url,
-      subjects_taught: 'Administration & Leadership',
+      // Fetches assigned subjects, defaults to Admin if empty
+      subjects_taught: headTeacher.subjects_taught || 'Administration & Leadership',
       joining_date: headTeacher.created_at,
       is_head_teacher: true
     })
@@ -103,7 +104,7 @@ export default async function TeachersDirectoryPage() {
                 `}>
                   {staff.is_head_teacher && (
                     <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-widest text-white bg-[#6b4c9a] px-2 py-1 rounded-sm shadow-sm">
-                      Admin
+                      Head Teacher
                     </span>
                   )}
                   
@@ -121,15 +122,23 @@ export default async function TeachersDirectoryPage() {
                     )}
                   </div>
                   
-                  <h3 className="text-base font-bold text-stone-900 text-center uppercase tracking-wide leading-tight mb-2">
+                  <h3 className="text-base font-bold text-stone-900 text-center uppercase tracking-wide leading-tight mb-3">
                     {staff.full_name}
                   </h3>
                   
-                  <p className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-sm text-center truncate max-w-full shadow-sm
-                    ${staff.is_head_teacher ? 'bg-white text-[#6b4c9a] border border-[#dad3e3]' : 'bg-white text-stone-500 border border-stone-200'}
+                  {/* Intelligent Scrollable Readable Text Block */}
+                  <div className={`w-full p-2.5 rounded-sm border shadow-inner mt-auto
+                    ${staff.is_head_teacher ? 'bg-white border-[#dad3e3]' : 'bg-white border-stone-200'}
                   `}>
-                    {staff.subjects_taught}
-                  </p>
+                    <div className="max-h-[58px] overflow-y-auto custom-scrollbar pr-1">
+                      <p className={`text-xs font-semibold leading-relaxed text-center
+                        ${staff.is_head_teacher ? 'text-[#6b4c9a]' : 'text-stone-600'}
+                      `}>
+                        {staff.subjects_taught}
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
 
                 {/* Staff Details */}
@@ -156,7 +165,7 @@ export default async function TeachersDirectoryPage() {
                     href={`/school-dashboard/teachers/${staff.id}/edit`}
                     className="flex-1 text-center px-3 py-2.5 bg-white border border-stone-300 text-stone-700 rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-stone-50 hover:text-[#6b4c9a] transition-colors shadow-sm"
                   >
-                    {staff.is_head_teacher ? 'Update Photo' : 'Edit Profile'}
+                    Edit
                   </Link>
                   
                   {/* Hide Delete button for Head Teacher */}
@@ -189,6 +198,14 @@ export default async function TeachersDirectoryPage() {
         )}
 
       </div>
+
+      {/* Global Style specifically applied for tiny scrollbars within this component */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #d6d3d1 transparent; }
+      `}} />
     </main>
   )
 }

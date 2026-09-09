@@ -76,7 +76,6 @@ export default function EditTeacherForm({ schoolId, subjects = [], teacher }: an
     setFinalPhotoBase64(base64)
   }
 
-  // Browser-based direct photo deletion with confirmation alert
   const handleRemovePhoto = async () => {
     if (!window.confirm("Are you sure you want to permanently delete this profile photo?")) return
     
@@ -124,7 +123,6 @@ export default function EditTeacherForm({ schoolId, subjects = [], teacher }: an
           
           setIsSubmitting(true)
           try {
-            // 1. If replacing the photo, delete the old one from Cloudinary via browser first
             if (finalPhotoBase64 && !removePhoto) {
               if (teacher.photo_url) {
                 const delAuth = await getCloudinaryDeleteAuth(teacher.photo_url)
@@ -139,7 +137,6 @@ export default function EditTeacherForm({ schoolId, subjects = [], teacher }: an
                 }
               }
 
-              // 2. Upload the new photo directly from browser to Cloudinary
               const folderName = `school_${schoolId}_teachers`
               const auth = await getCloudinaryAuth(folderName)
               
@@ -163,10 +160,8 @@ export default function EditTeacherForm({ schoolId, subjects = [], teacher }: an
             }
 
             formData.append('removePhoto', removePhoto ? 'true' : 'false')
-            // Ensure dropdown value is passed in formData
             formData.append('bloodGroup', bloodGroup) 
 
-            // 3. Save profile changes to database
             const result = await updateTeacher(formData)
             if (result?.success) {
               alert("Teacher profile updated successfully!")
@@ -185,7 +180,6 @@ export default function EditTeacherForm({ schoolId, subjects = [], teacher }: an
 
         <div className="flex flex-col lg:flex-row gap-10 lg:gap-14 items-start">
           
-          {/* Photo Section */}
           <div className="flex flex-col items-center gap-5 w-full lg:w-1/4 pt-2">
             <div className="w-40 h-40 md:w-48 md:h-48 rounded-full border border-stone-200 shadow-sm bg-stone-50 overflow-hidden flex items-center justify-center p-1.5">
               <div className="w-full h-full rounded-full overflow-hidden bg-stone-100 flex items-center justify-center">
@@ -219,7 +213,6 @@ export default function EditTeacherForm({ schoolId, subjects = [], teacher }: an
             <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
           </div>
 
-          {/* Form Fields */}
           <div className="w-full lg:w-3/4 flex flex-col gap-10">
             
             <div className="space-y-5">

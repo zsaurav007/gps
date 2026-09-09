@@ -9,6 +9,11 @@ export async function updateHeadTeacherPhoto(formData: FormData) {
   const removePhoto = formData.get('removePhoto') === 'true'
   const birthDate = formData.get('birthDate') as string | null
   const bloodGroup = formData.get('bloodGroup') as string | null
+  
+  // 1. Grab all the checked subject boxes from the form
+  const subjectsTaughtArray = formData.getAll('subjectsTaught') as string[]
+  // 2. Convert them into a comma-separated string for the database (or null if empty)
+  const subjectsTaught = subjectsTaughtArray.length > 0 ? subjectsTaughtArray.join(', ') : null
 
   const supabase = await createClient()
 
@@ -31,6 +36,9 @@ export async function updateHeadTeacherPhoto(formData: FormData) {
     updatePayload.blood_group = bloodGroup || null
   }
 
+  // Handle Subjects Update
+  updatePayload.subjects_taught = subjectsTaught
+
   // If there are absolutely no fields to update, return early
   if (Object.keys(updatePayload).length === 0) {
     return { success: true }
@@ -41,6 +49,7 @@ export async function updateHeadTeacherPhoto(formData: FormData) {
     .from('school_users')
     .update(updatePayload)
     .eq('id', headTeacherId)
+    .eq('role', 'headmaster')
 
   if (error) throw new Error(`Failed to update head teacher profile: ${error.message}`)
 
@@ -56,6 +65,7 @@ export async function removeHeadTeacherPhotoInstant(headTeacherId: string) {
     .from('school_users')
     .update({ photo_url: null })
     .eq('id', headTeacherId)
+    .eq('role', 'headmaster')
 
   if (error) throw new Error(`Failed to wipe head teacher DB photo url: ${error.message}`)
 

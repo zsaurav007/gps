@@ -29,7 +29,7 @@ const convertUrlToBase64 = async (url: string): Promise<string> => {
   })
 }
 
-export default function EditHeadTeacherPhotoForm({ schoolId, headTeacher }: { schoolId: string, headTeacher: any }) {
+export default function EditHeadTeacherPhotoForm({ schoolId, subjects = [], headTeacher }: { schoolId: string, subjects?: any[], headTeacher: any }) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -40,6 +40,7 @@ export default function EditHeadTeacherPhotoForm({ schoolId, headTeacher }: { sc
   const [bloodGroup, setBloodGroup] = useState<string>(headTeacher?.blood_group || '')
   
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const existingSubjects = headTeacher?.subjects_taught ? headTeacher.subjects_taught.split(',').map((s: string) => s.trim()) : []
 
   const bloodGroupOptions = [
     { label: 'A Positive (A+)', value: 'A+' },
@@ -130,7 +131,6 @@ export default function EditHeadTeacherPhotoForm({ schoolId, headTeacher }: { sc
             }
 
             formData.append('removePhoto', removePhoto ? 'true' : 'false')
-            // Pass dropdown state into formData
             formData.append('bloodGroup', bloodGroup)
 
             const result = await updateHeadTeacherPhoto(formData)
@@ -211,6 +211,41 @@ export default function EditHeadTeacherPhotoForm({ schoolId, headTeacher }: { sc
                     onChange={(val) => setBloodGroup(val as string)}
                     placeholder="Select Blood Group"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Employment Information (Subjects) */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-6">
+                <h3 className="text-[11px] font-medium text-stone-400 uppercase tracking-[0.2em]">Employment Information</h3>
+                <div className="h-[1px] bg-stone-200 flex-1"></div>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-5">
+                <div>
+                  <label className="block text-[10px] font-medium uppercase tracking-widest text-stone-500 mb-3">Subjects Assigned (Optional)</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-stone-50 p-5 border border-stone-200 rounded-sm">
+                    {subjects?.length > 0 ? (
+                      subjects.map((sub: any) => {
+                        const isChecked = existingSubjects.includes(sub.name)
+                        return (
+                          <label key={sub.id} className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                              type="checkbox" 
+                              name="subjectsTaught" 
+                              value={sub.name} 
+                              defaultChecked={isChecked}
+                              className="w-4 h-4 text-[#6b4c9a] bg-white border-stone-300 rounded-sm focus:ring-[#6b4c9a] cursor-pointer accent-[#6b4c9a]" 
+                            />
+                            <span className="text-sm text-stone-700 font-medium group-hover:text-[#6b4c9a] transition-colors">{sub.name}</span>
+                          </label>
+                        )
+                      })
+                    ) : (
+                      <p className="text-xs font-medium text-stone-400 italic col-span-full">No subjects configured in School Setup.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

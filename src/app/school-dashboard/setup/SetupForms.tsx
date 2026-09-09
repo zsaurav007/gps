@@ -7,7 +7,9 @@ import {
   deleteClassRecord, 
   updateClassRecord,
   assignBulkSubjectsToClass,
-  removeSubjectFromClass
+  removeSubjectFromClass,
+  deleteSubjectRecord,
+  updateSubjectRecord // <-- Ensure this is exported in your setup-actions.ts
 } from '@/app/actions/setup-actions'
 
 // ============================================================================
@@ -33,6 +35,11 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
   const [managingSubjectsClassId, setManagingSubjectsClassId] = useState<string | null>(null)
   const [isHolidaysExpanded, setIsHolidaysExpanded] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Overview Panel States
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
+  const [overviewEditClassId, setOverviewEditClassId] = useState<string | null>(null)
+  const [overviewEditSubjectId, setOverviewEditSubjectId] = useState<string | null>(null)
 
   // Universal handler for standard form submissions with alerts
   const handleActionWithAlert = async (
@@ -95,7 +102,7 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
 
   // Delete Class with confirmation
   const handleDeleteClass = async (classId: string, className: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete Class ${className}? This will remove all students and subjects associated with it.`)) return
+    if (!window.confirm(`Are you sure you want to permanently delete Class ${className}? This will fail if students or routines are attached.`)) return
     const formData = new FormData()
     formData.append('classId', classId)
     try {
@@ -106,8 +113,21 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
     }
   }
 
-  // Remove Subject with confirmation
-  const handleRemoveSubject = async (classId: string, subjectId: string, subjectName: string) => {
+  // Delete Subject Globally with confirmation
+  const handleDeleteSubject = async (subjectId: string, subjectName: string) => {
+    if (!window.confirm(`Are you sure you want to completely delete the subject "${subjectName}" from the database?`)) return
+    const formData = new FormData()
+    formData.append('subjectId', subjectId)
+    try {
+      await deleteSubjectRecord(formData) 
+      alert("Subject deleted successfully.")
+    } catch (error: any) {
+      alert(`Error: ${error.message}`)
+    }
+  }
+
+  // Remove Subject from a Specific Class
+  const handleRemoveSubjectFromClass = async (classId: string, subjectId: string, subjectName: string) => {
     if (!window.confirm(`Remove ${subjectName} from this class curriculum?`)) return
     const formData = new FormData()
     formData.append('classId', classId)
@@ -123,12 +143,127 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
     <div className="space-y-12 lg:space-y-16 font-sans pb-16 text-stone-900 max-w-7xl mx-auto">
       
       {/* =========================================
-          SECTION 1: GLOBAL SCHEDULE (Holidays)
+          SECTION 1: GLOBAL DATABASE OVERVIEW
+      ========================================= */}
+      <section className="bg-white rounded-sm shadow-sm border border-stone-200 overflow-hidden transition-all">
+        <div 
+          onClick={() => setIsOverviewExpanded(!isOverviewExpanded)} 
+          className="p-6 md:p-8 cursor-pointer flex justify-between items-center bg-stone-50 hover:bg-stone-100 transition-colors select-none"
+        >
+          <div>
+            <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">1. Global Database Overview</h2>
+            {!isOverviewExpanded && (
+              <p className="text-sm font-medium text-[#6b4c9a] mt-2">
+                Total Classes: <span className="font-bold">{classes.length}</span> <span className="mx-2 text-stone-300">|</span> 
+                Total Subjects: <span className="font-bold">{subjects.length}</span>
+              </p>
+            )}
+          </div>
+          <div className={`transform transition-transform duration-300 ${isOverviewExpanded ? 'rotate-180' : ''}`}>
+            <svg className="w-6 h-6 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+          </div>
+        </div>
+
+        <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOverviewExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="p-6 md:p-8 border-t border-stone-200 grid grid-cols-1 lg:grid-cols-2 gap-8 bg-white">
+              
+              {/* Global Classes List */}
+              <div>
+                <h3 className="text-sm font-bold text-[#6b4c9a] uppercase tracking-wider mb-4">Classes in Database</h3>
+                {classes.length === 0 ? (
+                  <p className="text-sm text-stone-500 italic p-4 bg-stone-50 border border-stone-200 rounded-sm">No classes found.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {classes.map((c: any) => (
+                      <li key={c.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-stone-50 border border-stone-200 p-3 rounded-sm shadow-sm hover:border-stone-300 transition-colors gap-3">
+                        
+                        {overviewEditClassId === c.id ? (
+                          <form onSubmit={(e) => handleActionWithAlert(e, updateClassRecord, "Class updated!", () => setOverviewEditClassId(null))} className="flex w-full items-center gap-2">
+                            <input type="hidden" name="classId" value={c.id} />
+                            <input type="text" name="className" defaultValue={c.name} required className="w-full p-2 border border-stone-300 rounded-sm text-xs font-bold focus:outline-none focus:border-[#6b4c9a]" />
+                            <input type="number" name="periodsPerDay" defaultValue={c.periods_per_day} required min="1" max="15" className="w-16 p-2 border border-stone-300 rounded-sm text-xs font-bold focus:outline-none focus:border-[#6b4c9a]" title="Periods per day" />
+                            <button type="submit" className="bg-[#6b4c9a] text-white px-3 py-2 rounded-sm text-[10px] font-bold uppercase hover:bg-[#5a3f82]">Save</button>
+                            <button type="button" onClick={() => setOverviewEditClassId(null)} className="bg-white border border-stone-300 px-3 py-2 rounded-sm text-[10px] font-bold uppercase hover:bg-stone-100">Cancel</button>
+                          </form>
+                        ) : (
+                          <>
+                            <span className="font-bold text-stone-800 text-sm uppercase tracking-wide">{c.name} <span className="text-[10px] font-medium text-stone-500 normal-case tracking-normal ml-2">({c.periods_per_day} Periods)</span></span>
+                            <div className="flex gap-2 shrink-0">
+                              <button onClick={() => setOverviewEditClassId(c.id)} className="text-[10px] font-bold uppercase tracking-wider text-[#6b4c9a] hover:underline bg-white px-3 py-1.5 border border-[#dad3e3] rounded-sm shadow-sm">Edit</button>
+                              <button onClick={() => handleDeleteClass(c.id, c.name)} className="text-[10px] font-bold uppercase tracking-wider text-[#b4483e] hover:underline bg-white px-3 py-1.5 border border-[#f2d5d2] rounded-sm shadow-sm">Delete</button>
+                            </div>
+                          </>
+                        )}
+                        
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Global Subjects List mapped to Classes */}
+              <div>
+                <h3 className="text-sm font-bold text-[#6b4c9a] uppercase tracking-wider mb-4">Subjects in Database</h3>
+                {subjects.length === 0 ? (
+                  <p className="text-sm text-stone-500 italic p-4 bg-stone-50 border border-stone-200 rounded-sm">No subjects found.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {subjects.map((s: any) => {
+                      const assignedClassIds = classSubjects.filter((cs: any) => cs.subject_id === s.id).map((cs: any) => cs.class_id);
+                      const assignedClassNames = classes.filter((c: any) => assignedClassIds.includes(c.id)).map((c: any) => c.name);
+                      
+                      return (
+                        <li key={s.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-start bg-stone-50 border border-stone-200 p-3 rounded-sm shadow-sm hover:border-stone-300 transition-colors gap-3">
+                          
+                          {overviewEditSubjectId === s.id ? (
+                            <form onSubmit={(e) => handleActionWithAlert(e, updateSubjectRecord, "Subject updated!", () => setOverviewEditSubjectId(null))} className="flex w-full items-center gap-2">
+                              <input type="hidden" name="subjectId" value={s.id} />
+                              <input type="text" name="subjectName" defaultValue={s.name} required className="w-full p-2 border border-stone-300 rounded-sm text-xs font-bold focus:outline-none focus:border-[#6b4c9a]" />
+                              <button type="submit" className="bg-[#6b4c9a] text-white px-3 py-2 rounded-sm text-[10px] font-bold uppercase hover:bg-[#5a3f82]">Save</button>
+                              <button type="button" onClick={() => setOverviewEditSubjectId(null)} className="bg-white border border-stone-300 px-3 py-2 rounded-sm text-[10px] font-bold uppercase hover:bg-stone-100">Cancel</button>
+                            </form>
+                          ) : (
+                            <>
+                              <div>
+                                <span className="font-bold text-stone-800 text-sm tracking-wide block">{s.name}</span>
+                                {assignedClassNames.length > 0 ? (
+                                  <span className="text-[10px] font-bold text-[#6b4c9a] uppercase tracking-widest mt-1 block leading-relaxed">
+                                    ({assignedClassNames.join(', ')})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1 block">
+                                    (Unassigned)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-2 shrink-0 mt-0.5">
+                                <button onClick={() => setOverviewEditSubjectId(s.id)} className="text-[10px] font-bold uppercase tracking-wider text-[#6b4c9a] hover:underline bg-white px-3 py-1.5 border border-[#dad3e3] rounded-sm shadow-sm">Edit</button>
+                                <button onClick={() => handleDeleteSubject(s.id, s.name)} className="text-[10px] font-bold uppercase tracking-wider text-[#b4483e] hover:underline bg-white px-3 py-1.5 border border-[#f2d5d2] rounded-sm shadow-sm">Delete</button>
+                              </div>
+                            </>
+                          )}
+
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      {/* =========================================
+          SECTION 2: GLOBAL SCHEDULE (Holidays)
       ========================================= */}
       <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
           <div>
-            <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">1. Global Schedule & Holidays</h2>
+            <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">2. Global Schedule & Holidays</h2>
             <p className="text-sm font-medium text-stone-600 mt-2">Configure the official non-working days for your institution.</p>
           </div>
           
@@ -204,11 +339,11 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
       </section>
 
       {/* =========================================
-          SECTION 2: CLASSES & CURRICULUM MANAGEMENT
+          SECTION 3: CLASSES & CURRICULUM MANAGEMENT
       ========================================= */}
       <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
         <div className="flex flex-col mb-8 pb-5 border-b border-stone-200">
-          <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">2. Class & Curriculum Manager</h2>
+          <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">3. Class & Curriculum Manager</h2>
           <p className="text-sm font-medium text-stone-600 mt-2">Create classes, set their daily academic periods, and assign the subjects taught in each.</p>
         </div>
 
@@ -224,9 +359,9 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
             <input 
               type="text" 
               name="className" 
-              placeholder="e.g. 10 - Section A" 
+              placeholder="e.g. Class 10" 
               required 
-              className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all" 
+              className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
             />
           </div>
           
@@ -239,7 +374,7 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
               min={1} 
               max={15} 
               required 
-              className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all" 
+              className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
             />
           </div>
           
@@ -254,7 +389,7 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
           </div>
         </form>
 
-        {/* Classes Catalog Grid (Restored items-stretch) */}
+        {/* Classes Catalog Grid */}
         {classes.length === 0 ? (
           <div className="p-16 rounded-sm border-2 border-dashed border-stone-300 text-center text-stone-600 font-medium text-sm bg-stone-50">
             No classes registered yet. Create your first class above to begin configuring the curriculum.
@@ -265,11 +400,9 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
               const assignedSubjectIds = classSubjects.filter((cs: any) => cs.class_id === cls.id).map((cs: any) => cs.subject_id)
               const mappedSubjects = subjects.filter((s: any) => assignedSubjectIds.includes(s.id))
               
-              // Filter out predefined subjects that are already mapped to this class
               const availablePredefined = PREDEFINED_SUBJECTS.filter(ps => !mappedSubjects.some((ms: any) => ms.name.toLowerCase() === ps.toLowerCase()))
 
               return (
-                /* Restored h-full so cards are identical sizes */
                 <div key={cls.id} className="bg-white rounded-sm shadow-sm border border-stone-200 overflow-hidden flex flex-col group hover:border-[#dad3e3] hover:shadow-md transition-all duration-300 h-full">
                   
                   {/* EDIT MODE */}
@@ -282,11 +415,11 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
                         <input type="hidden" name="classId" value={cls.id} />
                         <div>
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-1.5">Class Name</label>
-                          <input type="text" name="className" defaultValue={cls.name} required className="w-full p-3 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a]" />
+                          <input type="text" name="className" defaultValue={cls.name} required className="w-full p-3 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] shadow-sm" />
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-1.5">Periods Per Day</label>
-                          <input type="number" name="periodsPerDay" defaultValue={cls.periods_per_day} required className="w-full p-3 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a]" />
+                          <input type="number" name="periodsPerDay" defaultValue={cls.periods_per_day} required className="w-full p-3 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] shadow-sm" />
                         </div>
                         <div className="flex gap-3 pt-4 mt-auto">
                           <button type="submit" className="flex-1 bg-[#6b4c9a] text-white text-[11px] uppercase tracking-widest font-bold px-4 py-3 rounded-sm hover:bg-[#5a3f82] transition-colors shadow-sm">Save</button>
@@ -313,20 +446,16 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
                           <button onClick={() => setEditingClassId(cls.id)} className="bg-white border border-stone-200 text-stone-500 hover:text-[#6b4c9a] hover:border-[#6b4c9a] p-2 rounded-sm transition-colors shadow-sm" title="Edit Class">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                           </button>
-                          <button onClick={() => handleDeleteClass(cls.id, cls.name)} className="bg-white border border-stone-200 text-stone-500 hover:text-[#b4483e] hover:border-[#b4483e] p-2 rounded-sm transition-colors shadow-sm" title="Delete Class">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                          </button>
                         </div>
                       </div>
 
                       {/* Assigned Subjects Listing with "Canvas" background */}
                       <div className="p-6 flex-grow flex flex-col relative z-0">
-                        {/* Subtle placeholder border that stretches with the card */}
                         <div className="absolute inset-5 border-2 border-dashed border-stone-100 rounded-sm pointer-events-none -z-10 bg-stone-50/30"></div>
 
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">Assigned Curriculum</span>
-                          <span className="text-xs font-bold text-stone-600 bg-stone-100 px-3 py-1 rounded-sm border border-stone-200">{mappedSubjects.length} Items</span>
+                          <span className="text-xs font-bold text-stone-600 bg-stone-100 px-3 py-1 rounded-sm border border-stone-200 shadow-sm">{mappedSubjects.length} Items</span>
                         </div>
                         
                         {mappedSubjects.length > 0 ? (
@@ -335,7 +464,7 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
                               <span key={sub.id} className="inline-flex items-center gap-2 bg-white text-stone-800 border border-stone-300 text-[13px] font-bold px-3 py-2 rounded-sm tracking-wide hover:border-[#b4483e] hover:bg-[#fcf8f8] transition-colors group/tag shadow-sm">
                                 {sub.name}
                                 <button 
-                                  onClick={() => handleRemoveSubject(cls.id, sub.id, sub.name)} 
+                                  onClick={() => handleRemoveSubjectFromClass(cls.id, sub.id, sub.name)} 
                                   className="text-stone-400 group-hover/tag:text-[#b4483e] transition-colors ml-1"
                                   title={`Remove ${sub.name}`}
                                 >
@@ -351,12 +480,11 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
                         )}
                       </div>
 
-                      {/* Add Subjects Subform (Checkboxes + Custom Input) */}
+                      {/* Add Subjects Subform */}
                       {mappedSubjects.length === 0 || managingSubjectsClassId === cls.id ? (
                         <div className="p-5 sm:p-6 bg-stone-50 border-t border-stone-100 mt-auto">
                           <form onSubmit={(e) => handleBulkSubjectAdd(e, cls.id)} className="space-y-5">
                             
-                            {/* Predefined Subjects Grid */}
                             {availablePredefined.length > 0 && (
                               <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-2">
@@ -380,7 +508,6 @@ export default function SetupForms({ schoolId, currentHolidays, classes, subject
                               </div>
                             )}
 
-                            {/* Custom Subject Input */}
                             <div>
                               <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-2">
                                 Add Custom Subject

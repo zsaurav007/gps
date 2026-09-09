@@ -107,6 +107,21 @@ export interface Deficits {
 // ---------------------------------------------------------------------------
 // Scheduling engine & Utilities
 // ---------------------------------------------------------------------------
+
+// Utility to map english numerals to Bengali numerals globally in the UI
+const engToBng = (str: string | number): string => {
+  if (str === null || str === undefined) return '';
+  const bngNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  return String(str).replace(/[0-9]/g, w => bngNums[Number(w)]);
+}
+
+// Utility to map Bengali numerals back to English numerals for state/math
+const bngToEng = (str: string | number): string => {
+  if (str === null || str === undefined) return '';
+  const bngNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  return String(str).replace(/[০-৯]/g, w => String(bngNums.indexOf(w)));
+}
+
 const sectionKeyOf = (classId: string, section?: string): string => `${classId}::${section || ''}`
 const slotKeyOf = (day: string, period: number, ...rest: (string | undefined)[]): string => [day, period, ...rest].join('::')
 
@@ -232,47 +247,47 @@ function analyzeSetup(
       const availableSlots = days.length * cls.periodsPerDay
 
       if (reqs.length === 0) {
-        warnings.push(`${cls.name}${section} has no subjects assigned yet.`)
+        warnings.push(`${cls.name}${section}-এ এখনো কোনো বিষয় দেওয়া হয়নি।`)
         continue
       }
 
       if (totalRequired !== availableSlots) {
         warnings.push(
-          `${cls.name}${section} needs exactly ${availableSlots} periods/week, but currently has ${totalRequired} assigned in the matrix.`
+          `${cls.name}${section}-এ ঠিক ${engToBng(availableSlots)} পিরিয়ড/সপ্তাহ প্রয়োজন, কিন্তু বর্তমানে ম্যাট্রিক্সে ${engToBng(totalRequired)} দেওয়া আছে।`
         )
       }
 
       for (const req of reqs) {
-        const subjectName = subjectNameById.get(req.subjectId) || 'Unknown subject'
+        const subjectName = subjectNameById.get(req.subjectId) || 'অজানা বিষয়'
         if (!req.periodsPerWeek || req.periodsPerWeek <= 0) {
-          warnings.push(`${cls.name}${section} — ${subjectName} has 0 periods/week set.`)
+          warnings.push(`${cls.name}${section} — ${subjectName}-এ ০ পিরিয়ড/সপ্তাহ সেট করা আছে।`)
           continue
         }
         if (req.periodsPerWeek > days.length) {
-          warnings.push(`${cls.name}${section} — ${subjectName} is set to ${req.periodsPerWeek} periods/week (Max working days: ${days.length}). Set it to ≤ ${days.length} to avoid daily duplicate classes.`)
+          warnings.push(`${cls.name}${section} — ${subjectName} সপ্তাহে ${engToBng(req.periodsPerWeek)} পিরিয়ড দেওয়া আছে (সর্বোচ্চ কর্মদিবস: ${engToBng(days.length)})। দৈনিক ডুপ্লিকেট ক্লাস এড়াতে এটি ≤ ${engToBng(days.length)} করুন।`)
         }
         const qualified = qualifications.filter((q) => q.subjectId === req.subjectId)
         if (qualified.length === 0) {
-          warnings.push(`${cls.name}${section} — ${subjectName}: no teacher is qualified yet.`)
+          warnings.push(`${cls.name}${section} — ${subjectName}: এর জন্য কোনো যোগ্য শিক্ষক নেই।`)
         }
       }
     }
   }
 
   if (deficits.overallDeficit > 0) {
-    warnings.push(`Overall Teacher Shortage: Your current teachers fall short by ${deficits.overallDeficit} periods/week.`)
+    warnings.push(`সার্বিক শিক্ষক ঘাটতি: আপনার বর্তমান শিক্ষকদের সাপ্তাহিক পিরিয়ড সংখ্যা মোট চাহিদার চেয়ে ${engToBng(deficits.overallDeficit)} কম আছে।`)
   }
   
   const subjectsWithDeficit = deficits.subjectStats.filter(s => s.deficit > 0 && s.req > 0)
   if (subjectsWithDeficit.length > 0) {
-    const names = subjectsWithDeficit.map(d => `${d.name} (${d.deficit} short)`).join(', ')
-    warnings.push(`Subject-wise Deficit: More teacher availability needed for: ${names}.`)
+    const names = subjectsWithDeficit.map(d => `${d.name} (${engToBng(d.deficit)} ঘাটতি)`).join(', ')
+    warnings.push(`বিষয়ভিত্তিক ঘাটতি: যে বিষয়গুলোতে আরও শিক্ষক প্রয়োজন: ${names}।`)
   }
 
-  if (subjects.length === 0) warnings.push('No subjects available.')
-  if (days.length === 0) warnings.push('No working days available.')
-  if (teachers.length === 0) warnings.push('No teachers available.')
-  if (classes.length === 0) warnings.push('No classes available.')
+  if (subjects.length === 0) warnings.push('কোনো বিষয় উপলব্ধ নেই।')
+  if (days.length === 0) warnings.push('কোনো কর্মদিবস নেই।')
+  if (teachers.length === 0) warnings.push('কোনো শিক্ষক নেই।')
+  if (classes.length === 0) warnings.push('কোনো ক্লাস নেই।')
 
   return warnings
 }
@@ -343,7 +358,7 @@ function attemptSchedule(
       const reqs = requirements.filter((r) => r.classId === cls.id && (r.section || '') === section)
       for (const req of reqs) {
         if (!req.periodsPerWeek || req.periodsPerWeek <= 0) continue
-        const subjectName = subjectNameById.get(req.subjectId) || 'Unknown Subject'
+        const subjectName = subjectNameById.get(req.subjectId) || 'অজানা বিষয়'
 
         const preferred = preferredAssignments.find(
           (p) => p.classId === cls.id && (p.section || '') === section && p.subjectId === req.subjectId
@@ -496,7 +511,7 @@ function attemptSchedule(
           className: victim.className,
           section: victim.section,
           subject: victim.subject,
-          reason: `Displaced while resolving scheduling conflict for ${lesson.subject}. Check qualified teacher capacity.`,
+          reason: `শিডিউল কনফ্লিক্ট সমাধানের সময় বাদ পড়েছে। যোগ্য শিক্ষকের ধারণক্ষমতা চেক করুন।`,
           needsTeacher: true,
         })
       }
@@ -508,8 +523,8 @@ function attemptSchedule(
       placedStack.push(placed)
     } else {
       const reason = lesson.candidateTeachers.length === 0
-          ? `No teacher is qualified for this subject.`
-          : `Teacher availability conflict (daily period limits reached).`
+          ? `এই বিষয়ের জন্য কোনো শিক্ষক যোগ্য নয়।`
+          : `শিক্ষক উপলব্ধ নেই (দৈনিক পিরিয়ড সীমা পূর্ণ)।`
       unscheduled.push({
         classId: lesson.classId,
         className: lesson.className,
@@ -596,7 +611,7 @@ function buildClassRoutines(
             section,
             subject,
             teacherId: null,
-            teacherName: 'Teacher needed',
+            teacherName: 'শিক্ষক প্রয়োজন',
             isPlaceholder: true,
           })
           occupied.add(`${slot.day}::${slot.period}`)
@@ -615,9 +630,9 @@ function buildClassRoutines(
 const ALL_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 const WEEK_TYPE_OPTIONS = [
-  { label: '5-Day Week (Sun – Thu)', value: '5' },
-  { label: '6-Day Week (Sat – Thu)', value: '6' },
-  { label: '7-Day Week (Sat – Fri)', value: '7' },
+  { label: '৫-দিনের সপ্তাহ (রবি – বৃহঃ)', value: '5' },
+  { label: '৬-দিনের সপ্তাহ (শনি – বৃহঃ)', value: '6' },
+  { label: '৭-দিনের সপ্তাহ (শনি – শুক্র)', value: '7' },
 ]
 
 const WEEK_TYPE_DAYS: Record<string, string[]> = {
@@ -625,6 +640,10 @@ const WEEK_TYPE_DAYS: Record<string, string[]> = {
   '6': ALL_DAYS.slice(0, 6), 
   '7': ALL_DAYS.slice(0, 7), 
 }
+
+// Bengali mapped strings for display
+const DAY_FULL_BN: Record<string, string> = { 'Saturday': 'শনিবার', 'Sunday': 'রবিবার', 'Monday': 'সোমবার', 'Tuesday': 'মঙ্গলবার', 'Wednesday': 'বুধবার', 'Thursday': 'বৃহস্পতিবার', 'Friday': 'শুক্রবার' }
+const DAY_SHORT_BN: Record<string, string> = { 'Saturday': 'শনি', 'Sunday': 'রবি', 'Monday': 'সোম', 'Tuesday': 'মঙ্গল', 'Wednesday': 'বুধ', 'Thursday': 'বৃহঃ', 'Friday': 'শুক্র' }
 
 const uid = (): string => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
@@ -750,21 +769,21 @@ export default function RoutineBuilderClient({
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8 print:hidden">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 uppercase tracking-wide">Routine Builder</h1>
-            <p className="text-sm font-medium text-stone-600 mt-1">Configure your fetched database setup, add custom overrides, and generate timetables.</p>
+            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 uppercase tracking-wide">রুটিন বিল্ডার</h1>
+            <p className="text-base font-medium text-stone-600 mt-1">আপনার ডেটাবেস সেটআপ কনফিগার করুন, কাস্টম ওভাররাইড যোগ করুন এবং রুটিন তৈরি করুন।</p>
           </div>
         </div>
         
         <div className="space-y-6 font-sans text-stone-900">
           <div className="flex gap-2 border-b border-stone-200 print:hidden">
             {[
-              { id: 'setup', label: 'Setup & Edit Curriculum' },
-              { id: 'view', label: 'Generate & View Routines' },
+              { id: 'setup', label: 'সেটআপ ও কারিকুলাম' },
+              { id: 'view', label: 'রুটিন তৈরি ও প্রদর্শন' },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-3 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                className={`px-5 py-3 text-sm font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px ${
                   activeTab === tab.id ? 'text-[#6b4c9a] border-[#6b4c9a]' : 'text-stone-500 border-transparent hover:text-stone-800'
                 }`}
               >
@@ -864,29 +883,29 @@ function SetupTab({
       <PreferredTeacherSection classes={classes} subjects={subjects} requirements={requirements} teachers={teachers} qualifications={qualifications} preferredAssignments={preferredAssignments} setPreferredAssignments={setPreferredAssignments} />
 
       <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-        <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide mb-1">Ready to Generate</h2>
-        <p className="text-sm font-medium text-stone-600 mb-5">
-          Build the weekly routine. Teachers are balanced automatically, and subjects are shuffled to vary the timetable daily.
+        <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide mb-1">রুটিন তৈরির জন্য প্রস্তুত</h2>
+        <p className="text-base font-medium text-stone-600 mb-5">
+          সাপ্তাহিক রুটিন তৈরি করুন। শিক্ষকদের স্বয়ংক্রিয়ভাবে ব্যালেন্স করা হবে এবং প্রতিদিনের সময়সূচীতে বৈচিত্র্য আনতে বিষয়গুলো সাফল করা হবে।
         </p>
 
         {warnings.length > 0 ? (
           <div className="mb-6 p-5 bg-[#fbf9fc] border border-[#dad3e3] rounded-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#b4483e] mb-2">Review Warnings Before Generating:</p>
-            <ul className="text-xs font-medium text-[#b4483e] space-y-1.5 list-disc list-inside">
+            <p className="text-sm font-bold uppercase tracking-wider text-[#b4483e] mb-2">তৈরি করার আগে সতর্কবার্তাগুলো যাচাই করুন:</p>
+            <ul className="text-sm font-medium text-[#b4483e] space-y-1.5 list-disc list-inside">
               {warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
           </div>
         ) : (
           <div className="mb-6 p-5 bg-[#f2f7ee] border border-[#d9e6cd] rounded-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#4a6b3a]">Setup looks complete and perfectly balanced.</p>
+            <p className="text-sm font-bold uppercase tracking-wider text-[#4a6b3a]">সেটআপ সম্পূর্ণ এবং সুন্দরভাবে ব্যালেন্সড দেখাচ্ছে।</p>
           </div>
         )}
 
         <button
           onClick={onGenerate}
-          className="w-full sm:w-auto bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm"
+          className="w-full sm:w-auto bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm"
         >
-          Generate Weekly Routine
+          সাপ্তাহিক রুটিন তৈরি করুন
         </button>
       </section>
     </div>
@@ -917,12 +936,12 @@ function WeekAndHolidays({ weekType, setWeekType, weekDays, holidays, setHoliday
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5 mb-8">
         <div>
-          <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">1. Week & Holidays</h2>
-          <p className="text-sm font-medium text-stone-600 mt-2">Database fetched holidays are pre-ticked below. Edit to apply locally.</p>
+          <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">১. সপ্তাহ ও ছুটির দিন</h2>
+          <p className="text-base font-medium text-stone-600 mt-2">ডেটাবেস থেকে প্রাপ্ত ছুটির দিনগুলো নিচে আগে থেকেই টিক দেওয়া আছে। লোকালি প্রয়োগ করতে এডিট করুন।</p>
         </div>
 
         <div className="w-full md:w-72 shrink-0">
-          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">School Week</label>
+          <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">স্কুল সপ্তাহ</label>
           <Dropdown
             options={WEEK_TYPE_OPTIONS}
             value={weekType}
@@ -931,7 +950,7 @@ function WeekAndHolidays({ weekType, setWeekType, weekDays, holidays, setHoliday
         </div>
       </div>
 
-      <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-3">Mark Holidays</label>
+      <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-3">ছুটির দিন চিহ্নিত করুন</label>
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
         {weekDays.map((day) => (
           <label
@@ -944,24 +963,24 @@ function WeekAndHolidays({ weekType, setWeekType, weekDays, holidays, setHoliday
               onChange={() => toggleHoliday(day)}
               className="absolute top-3 right-3 w-4 h-4 text-[#b4483e] bg-white border-stone-300 rounded-sm focus:ring-[#b4483e] cursor-pointer accent-[#b4483e]"
             />
-            <span className="text-sm font-bold text-stone-800 uppercase tracking-wider mt-2 group-hover:text-[#b4483e]">{day.slice(0, 3)}</span>
-            <span className="text-xs font-medium text-stone-500 mt-1">{day}</span>
+            <span className="text-base font-bold text-stone-800 uppercase tracking-wider mt-2 group-hover:text-[#b4483e]">{DAY_SHORT_BN[day]}</span>
+            <span className="text-sm font-medium text-stone-500 mt-1">{DAY_FULL_BN[day]}</span>
           </label>
         ))}
       </div>
 
       <div className="p-5 bg-[#fbf9fc] border border-[#dad3e3] rounded-sm flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
-        <span className="text-xs font-bold text-[#6b4c9a] uppercase tracking-wider shrink-0">Working Days ({days.length}):</span>
+        <span className="text-sm font-bold text-[#6b4c9a] uppercase tracking-wider shrink-0">কর্মদিবস ({engToBng(days.length)}):</span>
         {days.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {days.map((day) => (
-              <span key={day} className="bg-white border border-stone-200 text-stone-800 px-4 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider shadow-sm">
-                {day}
+              <span key={day} className="bg-white border border-stone-200 text-stone-800 px-4 py-1.5 rounded-sm text-sm font-bold uppercase tracking-wider shadow-sm">
+                {DAY_FULL_BN[day]}
               </span>
             ))}
           </div>
         ) : (
-          <span className="text-sm font-medium text-stone-500 italic">Every day is a holiday.</span>
+          <span className="text-base font-medium text-stone-500 italic">প্রতিদিন ছুটির দিন।</span>
         )}
       </div>
     </section>
@@ -985,12 +1004,12 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
 
   function handleGlobalPeriodsChange(val: string) {
     setGlobalPeriods(val)
-    const num = Number(val) || 6
+    const num = val === '' ? 0 : Number(val)
     setClasses(classes.map(c => ({ ...c, periodsPerDay: num })))
   }
 
   function handleClassPeriodChange(classId: string, val: string) {
-    const num = Number(val) || 1
+    const num = val === '' ? 0 : Number(val)
     setClasses(classes.map(c => c.id === classId ? { ...c, periodsPerDay: num } : c))
   }
 
@@ -1007,7 +1026,7 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
 
   async function removeClass(id: string) {
     if (id.includes('-') && id.length === 36) {
-       if (!window.confirm("WARNING: This will permanently delete this class from your database! Continue?")) return;
+       if (!window.confirm("সতর্কতা: এটি ডেটাবেস থেকে ক্লাসটি স্থায়ীভাবে মুছে ফেলবে! চালিয়ে যাবেন?")) return;
        const res = await deleteDatabaseRecord('classes', id);
        if (!res.success) {
           alert(res.error);
@@ -1034,18 +1053,18 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">2. Class & Section Manager</h2>
-      <p className="text-sm font-medium text-stone-600 mt-2 mb-6">Your fetched database classes are shown below. You can fully edit their names, periods, or add custom temporary classes.</p>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">২. ক্লাস ও সেকশন ম্যানেজার</h2>
+      <p className="text-base font-medium text-stone-600 mt-2 mb-6">আপনার ডেটাবেসের ক্লাসগুলো নিচে দেখানো হলো। আপনি এগুলোর নাম, পিরিয়ড এডিট করতে পারেন বা কাস্টম ক্লাস যোগ করতে পারেন।</p>
 
       <div className="bg-[#fbf9fc] p-6 rounded-sm border border-[#dad3e3] mb-8 shadow-sm flex flex-col md:flex-row gap-5 items-end justify-between">
         <div className="w-full md:w-auto">
-          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-3">Global Periods per Day</label>
+          <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-3">গ্লোবাল পিরিয়ড/দিন</label>
           <input
-            type="number"
-            min="1"
-            value={globalPeriods}
-            onChange={(e) => handleGlobalPeriodsChange(e.target.value)}
-            className="w-full md:w-64 p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all"
+            type="text"
+            inputMode="numeric"
+            value={engToBng(globalPeriods)}
+            onChange={(e) => handleGlobalPeriodsChange(bngToEng(e.target.value))}
+            className="w-full md:w-64 p-3.5 bg-white border border-stone-300 rounded-sm text-base font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all"
           />
         </div>
         <div className="w-full md:w-auto flex gap-3">
@@ -1053,24 +1072,24 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
             value={customName}
             onChange={(e) => setCustomName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomClass() } }}
-            placeholder="New Class Name..."
-            className="flex-1 md:w-64 p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all"
+            placeholder="নতুন ক্লাসের নাম..."
+            className="flex-1 md:w-64 p-3.5 bg-white border border-stone-300 rounded-sm text-base font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all"
           />
-          <button onClick={addCustomClass} className="bg-stone-900 text-white px-6 py-3.5 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-stone-800 transition-colors shadow-sm shrink-0">
-            + Add Class
+          <button onClick={addCustomClass} className="bg-stone-900 text-white px-6 py-3.5 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-stone-800 transition-colors shadow-sm shrink-0">
+            + ক্লাস যোগ করুন
           </button>
         </div>
       </div>
 
       {classes.length > 0 && (
         <div className="overflow-x-auto border border-stone-200 rounded-sm">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-left">
             <thead className="bg-stone-50 border-b border-stone-200">
               <tr>
-                <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500">Class Name (Editable)</th>
-                <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500 w-32">Periods / Day</th>
-                <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500 w-40 text-center">Total Wkly Periods</th>
-                <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500">Sections Manager</th>
+                <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500">ক্লাসের নাম (এডিটেবল)</th>
+                <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500 w-32">পিরিয়ড/দিন</th>
+                <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500 w-40 text-center">মোট সাপ্তাহিক পিরিয়ড</th>
+                <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500">সেকশন ম্যানেজার</th>
                 <th className="py-3 px-4 w-24"></th>
               </tr>
             </thead>
@@ -1083,27 +1102,27 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
                       <input
                         value={c.name}
                         onChange={(e) => handleClassNameChange(c.id, e.target.value)}
-                        className="w-full p-2 bg-transparent border border-transparent hover:border-stone-300 focus:bg-white focus:border-[#6b4c9a] rounded-sm text-sm font-bold text-stone-900 focus:outline-none transition-all"
+                        className="w-full p-2 bg-transparent border border-transparent hover:border-stone-300 focus:bg-white focus:border-[#6b4c9a] rounded-sm text-base font-bold text-stone-900 focus:outline-none transition-all"
                       />
                     </td>
                     <td className="py-4 px-4">
                       <input
-                        type="number"
-                        min="1"
-                        value={c.periodsPerDay}
-                        onChange={(e) => handleClassPeriodChange(c.id, e.target.value)}
-                        className="w-full p-2 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] transition-all"
+                        type="text"
+                        inputMode="numeric"
+                        value={c.periodsPerDay ? engToBng(c.periodsPerDay) : ''}
+                        onChange={(e) => handleClassPeriodChange(c.id, bngToEng(e.target.value))}
+                        className="w-full p-2 bg-white border border-stone-300 rounded-sm text-base font-medium text-stone-900 focus:outline-none focus:border-[#6b4c9a] transition-all text-center"
                       />
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className="inline-block bg-[#fbf9fc] text-[#6b4c9a] font-bold border border-[#dad3e3] px-3 py-1.5 rounded-sm shadow-sm text-xs tracking-wider">
-                        {totalWeekly}
+                      <span className="inline-block bg-[#fbf9fc] text-[#6b4c9a] font-bold border border-[#dad3e3] px-3 py-1.5 rounded-sm shadow-sm text-sm tracking-wider">
+                        {engToBng(totalWeekly)}
                       </span>
                     </td>
                     <td className="py-4 px-4 space-y-3">
                       <div className="flex flex-wrap gap-1.5">
                         {c.sections.map((s) => (
-                          <span key={s} className="inline-flex items-center gap-1.5 bg-white text-stone-800 text-xs font-bold px-2 py-1.5 rounded-sm border border-stone-200 shadow-sm">
+                          <span key={s} className="inline-flex items-center gap-1.5 bg-white text-stone-800 text-sm font-bold px-2 py-1.5 rounded-sm border border-stone-200 shadow-sm">
                             {s}
                             <button onClick={() => removeSection(c.id, s)} className="text-stone-400 hover:text-[#b4483e] transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                           </span>
@@ -1113,14 +1132,14 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
                         <input
                           value={sectionInput[c.id] || ''}
                           onChange={(e) => setSectionInput({ ...sectionInput, [c.id]: e.target.value })}
-                          placeholder="e.g. Sec A"
-                          className="w-32 p-2 bg-white border border-stone-300 rounded-sm text-xs font-medium focus:outline-none focus:border-[#6b4c9a] transition-all"
+                          placeholder="উদাঃ শাখা ক"
+                          className="w-32 p-2 bg-white border border-stone-300 rounded-sm text-sm font-medium focus:outline-none focus:border-[#6b4c9a] transition-all"
                         />
-                        <button onClick={() => addSection(c.id)} className="bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-sm text-[10px] uppercase font-bold hover:text-[#6b4c9a] hover:border-[#6b4c9a] transition-colors shadow-sm">Add</button>
+                        <button onClick={() => addSection(c.id)} className="bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-sm text-xs uppercase font-bold hover:text-[#6b4c9a] hover:border-[#6b4c9a] transition-colors shadow-sm">যোগ</button>
                       </div>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <button onClick={() => removeClass(c.id)} className="text-xs font-bold uppercase tracking-wider text-[#b4483e] hover:underline">Delete</button>
+                      <button onClick={() => removeClass(c.id)} className="text-sm font-bold uppercase tracking-wider text-[#b4483e] hover:underline">মুছুন</button>
                     </td>
                   </tr>
                 )
@@ -1152,7 +1171,7 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
   function addSubject() {
     if (!name.trim()) return
     if (subjects.some((s) => s.name.toLowerCase() === name.trim().toLowerCase())) {
-      alert('A subject with this name already exists.')
+      alert('এই নামের একটি বিষয় আগে থেকেই আছে।')
       return
     }
     setSubjects([...subjects, { id: uid(), name: name.trim() }])
@@ -1167,7 +1186,7 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
   function saveEdit() {
     if (!editName.trim()) return
     if (subjects.some((s) => s.id !== editingId && s.name.toLowerCase() === editName.trim().toLowerCase())) {
-      alert('A subject with this name already exists.')
+      alert('এই নামের একটি বিষয় আগে থেকেই আছে।')
       return
     }
     setSubjects(subjects.map(s => s.id === editingId ? { ...s, name: editName.trim() } : s))
@@ -1176,7 +1195,7 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
 
   async function removeSubject(id: string) {
     if (id.includes('-') && id.length === 36) {
-       if (!window.confirm("WARNING: This will permanently delete this subject from your database! Continue?")) return;
+       if (!window.confirm("সতর্কতা: এটি ডেটাবেস থেকে বিষয়টি স্থায়ীভাবে মুছে ফেলবে! চালিয়ে যাবেন?")) return;
        const res = await deleteDatabaseRecord('subjects', id);
        if (!res.success) {
           alert(res.error);
@@ -1191,19 +1210,19 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">3. Subjects</h2>
-      <p className="text-sm font-medium text-stone-600 mt-2 mb-6">Your fetched database subjects are fully editable here.</p>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৩. বিষয়সমূহ</h2>
+      <p className="text-base font-medium text-stone-600 mt-2 mb-6">আপনার ডেটাবেসের বিষয়গুলো এখানে সম্পূর্ণ এডিটযোগ্য।</p>
       
       <div className="flex gap-3 mt-4 mb-8">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubject() } }}
-          placeholder="e.g. Advanced Mathematics"
-          className="flex-1 max-w-sm p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm"
+          placeholder="উদাঃ উচ্চতর গণিত"
+          className="flex-1 max-w-sm p-3.5 bg-white border border-stone-300 rounded-sm text-base font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm"
         />
-        <button onClick={addSubject} className="bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm shrink-0">
-          + Add Subject
+        <button onClick={addSubject} className="bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm shrink-0">
+          + বিষয় যোগ করুন
         </button>
       </div>
 
@@ -1217,28 +1236,28 @@ function SubjectsSection({ subjects, setSubjects, requirements, setRequirements,
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') saveEdit() }}
-                  className="p-1.5 border border-stone-300 bg-white rounded-sm text-xs font-bold w-40 focus:outline-none focus:border-[#6b4c9a]"
+                  className="p-1.5 border border-stone-300 bg-white rounded-sm text-sm font-bold w-40 focus:outline-none focus:border-[#6b4c9a]"
                 />
-                <button onClick={saveEdit} className="text-[10px] uppercase font-bold bg-[#6b4c9a] text-white px-3 py-1.5 rounded-sm hover:bg-[#5a3f82]">Save</button>
-                <button onClick={() => setEditingId(null)} className="text-[10px] uppercase font-bold text-stone-600 bg-white border border-stone-300 px-3 py-1.5 rounded-sm hover:bg-stone-50">Cancel</button>
+                <button onClick={saveEdit} className="text-xs uppercase font-bold bg-[#6b4c9a] text-white px-3 py-1.5 rounded-sm hover:bg-[#5a3f82]">সংরক্ষণ</button>
+                <button onClick={() => setEditingId(null)} className="text-xs uppercase font-bold text-stone-600 bg-white border border-stone-300 px-3 py-1.5 rounded-sm hover:bg-stone-50">বাতিল</button>
               </div>
             )
           }
           return (
-            <div key={s.id} className="group flex items-center gap-2 bg-white text-stone-800 border border-stone-300 text-xs font-bold px-4 py-2.5 rounded-sm tracking-wide shadow-sm hover:border-stone-400 transition-colors">
+            <div key={s.id} className="group flex items-center gap-2 bg-white text-stone-800 border border-stone-300 text-sm font-bold px-4 py-2.5 rounded-sm tracking-wide shadow-sm hover:border-stone-400 transition-colors">
               <span>{s.name}</span>
               <div className="hidden group-hover:flex items-center gap-1.5 ml-2 border-l border-stone-200 pl-2">
                 <button onClick={() => startEdit(s)} className="text-stone-400 hover:text-[#6b4c9a] transition-colors" title="Edit">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                 </button>
                 <button onClick={() => removeSubject(s.id)} className="text-stone-400 hover:text-[#b4483e] transition-colors" title="Delete">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
               </div>
             </div>
           )
         })}
-        {subjects.length === 0 && <p className="text-sm font-medium text-stone-400 italic">No subjects available.</p>}
+        {subjects.length === 0 && <p className="text-base font-medium text-stone-400 italic">কোনো বিষয় নেই।</p>}
       </div>
     </section>
   )
@@ -1270,7 +1289,7 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
   }
 
   function updateRequirementPeriods(classId: string, section: string, subjectId: string, periods: string) {
-    let num = Number(periods)
+    let num = periods === '' ? 0 : Number(periods)
     if (num > days.length) num = days.length 
     
     setRequirements(requirements.map(r => 
@@ -1282,23 +1301,23 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">4. Class Curriculum Matrix</h2>
-      <p className="text-sm font-medium text-stone-600 mt-2 mb-6">
-        Set subjects and periods per week based on your database mapping.
-        <strong className="text-[#b4483e] ml-1">Sum must exactly match the limits shown to avoid empty Free Periods. Max {days.length} periods/wk per subject.</strong>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৪. ক্লাস কারিকুলাম ম্যাট্রিক্স</h2>
+      <p className="text-base font-medium text-stone-600 mt-2 mb-6">
+        ডেটাবেস ম্যাপিং অনুযায়ী বিষয় ও সাপ্তাহিক পিরিয়ড সেট করুন।
+        <strong className="text-[#b4483e] ml-1">ফাঁকা পিরিয়ড এড়াতে মোট পিরিয়ড অবশ্যই প্রদর্শিত সীমার সমান হতে হবে। প্রতি বিষয়ে সপ্তাহে সর্বোচ্চ {engToBng(days.length)} পিরিয়ড।</strong>
       </p>
 
       {columns.length === 0 || subjects.length === 0 ? (
-        <div className="p-6 rounded-sm border border-dashed border-stone-300 bg-stone-50 text-center text-sm font-medium text-stone-500">
-          Fetching classes and subjects from database to build the curriculum matrix...
+        <div className="p-6 rounded-sm border border-dashed border-stone-300 bg-stone-50 text-center text-base font-medium text-stone-500">
+          কারিকুলাম ম্যাট্রিক্স তৈরির জন্য ডেটাবেস থেকে ক্লাস এবং বিষয় আনা হচ্ছে...
         </div>
       ) : (
         <div className="overflow-x-auto border border-stone-200 rounded-sm shadow-sm">
-          <table className="w-full text-sm border-collapse min-w-max bg-white">
+          <table className="w-full text-base border-collapse min-w-max bg-white">
             <thead className="bg-stone-50 border-b border-stone-200 sticky top-0 z-10">
               <tr>
-                <th className="py-4 px-4 text-left text-xs font-bold uppercase tracking-wider text-stone-500 border-r border-stone-200">
-                  Subjects
+                <th className="py-4 px-4 text-left text-base font-bold uppercase tracking-wider text-stone-500 border-r border-stone-200">
+                  বিষয়সমূহ
                 </th>
                 {columns.map(col => {
                   const currentSum = requirements
@@ -1309,9 +1328,9 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
 
                   return (
                     <th key={`${col.classId}-${col.section}`} className="py-3 px-4 text-center border-r border-stone-200 last:border-0 min-w-[140px]">
-                      <div className="font-bold text-stone-800 text-sm mb-1">{col.name}</div>
-                      <div className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm border inline-block ${isPerfect ? 'bg-[#f2f7ee] text-[#4a6b3a] border-[#d9e6cd]' : 'bg-[#fcf2f1] text-[#b4483e] border-[#f2d5d2]'}`}>
-                        {currentSum} / {col.limit} slots
+                      <div className="font-bold text-stone-800 text-base mb-1">{col.name}</div>
+                      <div className={`text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm border inline-block ${isPerfect ? 'bg-[#f2f7ee] text-[#4a6b3a] border-[#d9e6cd]' : 'bg-[#fcf2f1] text-[#b4483e] border-[#f2d5d2]'}`}>
+                        {engToBng(currentSum)} / {engToBng(col.limit)} স্লট
                       </div>
                     </th>
                   )
@@ -1335,17 +1354,16 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
                             type="checkbox"
                             checked={isChecked}
                             onChange={(e) => toggleRequirement(col.classId, col.section, subj.id, e.target.checked)}
-                            className="w-4 h-4 text-[#6b4c9a] bg-white border-stone-300 rounded-sm focus:ring-[#6b4c9a] cursor-pointer accent-[#6b4c9a]"
+                            className="w-5 h-5 text-[#6b4c9a] bg-white border-stone-300 rounded-sm focus:ring-[#6b4c9a] cursor-pointer accent-[#6b4c9a]"
                           />
                           {isChecked && req && (
                             <input
-                              type="number"
-                              min="1"
-                              max={days.length}
-                              value={req.periodsPerWeek}
-                              onChange={(e) => updateRequirementPeriods(col.classId, col.section, subj.id, e.target.value)}
-                              className="w-16 p-1.5 text-center border border-stone-300 bg-white rounded-sm text-xs font-bold focus:outline-none focus:border-[#6b4c9a]"
-                              title={`Max ${days.length} periods per week`}
+                              type="text"
+                              inputMode="numeric"
+                              value={req.periodsPerWeek ? engToBng(req.periodsPerWeek) : ''}
+                              onChange={(e) => updateRequirementPeriods(col.classId, col.section, subj.id, bngToEng(e.target.value))}
+                              className="w-16 p-1.5 text-center border border-stone-300 bg-white rounded-sm text-sm font-bold focus:outline-none focus:border-[#6b4c9a]"
+                              title={`সপ্তাহে সর্বোচ্চ ${engToBng(days.length)} পিরিয়ড`}
                             />
                           )}
                         </div>
@@ -1385,12 +1403,12 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
     if (!name.trim() || !p || p <= 0) return
     
     if (teachers.some(t => t.name.toLowerCase() === name.trim().toLowerCase())) {
-      alert('A teacher with this name already exists.')
+      alert('এই নামের একজন শিক্ষক আগে থেকেই আছেন।')
       return
     }
 
     if (p > maxClassPeriods) {
-      alert(`A teacher cannot take more than ${maxClassPeriods} periods per day based on current max class setups.`)
+      alert(`একজন শিক্ষক দিনে ${engToBng(maxClassPeriods)} পিরিয়ডের বেশি ক্লাস নিতে পারবেন না।`)
       return
     }
     setTeachers([...teachers, { id: uid(), name: name.trim(), maxPeriodsPerDay: p }])
@@ -1409,12 +1427,12 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
     if (!editName.trim() || !p || p <= 0) return
 
     if (teachers.some((t) => t.id !== editingId && t.name.toLowerCase() === editName.trim().toLowerCase())) {
-      alert('A teacher with this name already exists.')
+      alert('এই নামের একজন শিক্ষক আগে থেকেই আছেন।')
       return
     }
 
     if (p > maxClassPeriods) {
-      alert(`Cannot exceed max class periods (${maxClassPeriods})`)
+      alert(`সর্বোচ্চ পিরিয়ডের বেশি দেওয়া যাবে না (${engToBng(maxClassPeriods)})`)
       return
     }
 
@@ -1424,7 +1442,7 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
 
   async function removeTeacher(id: string) {
     if (id.includes('-') && id.length === 36) {
-       if (!window.confirm("WARNING: This will permanently delete this teacher from your database! Continue?")) return;
+       if (!window.confirm("সতর্কতা: এটি ডেটাবেস থেকে শিক্ষককে স্থায়ীভাবে মুছে ফেলবে! চালিয়ে যাবেন?")) return;
        const res = await deleteDatabaseRecord('teachers', id);
        if (!res.success) {
           alert(res.error);
@@ -1438,20 +1456,20 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">5. Teachers</h2>
-      <p className="text-sm font-medium text-stone-600 mt-2 mb-6">Your fetched database teachers are completely editable here. Max periods per day cannot exceed the max periods of your longest class (<strong className="text-stone-800">{maxClassPeriods}</strong>).</p>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৫. শিক্ষকবৃন্দ</h2>
+      <p className="text-base font-medium text-stone-600 mt-2 mb-6">ডেটাবেসের শিক্ষকরা এখানে সম্পূর্ণ এডিটযোগ্য। প্রতিদিনের সর্বোচ্চ পিরিয়ড আপনার দীর্ঘতম ক্লাসের সর্বোচ্চ পিরিয়ডের চেয়ে বেশি হতে পারবে না (<strong className="text-stone-800">{engToBng(maxClassPeriods)}</strong>)।</p>
 
       <div className="bg-[#fbf9fc] p-6 rounded-sm border border-[#dad3e3] mb-8 grid grid-cols-1 md:grid-cols-12 gap-5 items-end shadow-sm">
         <div className="md:col-span-6">
-          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Teacher Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" />
+          <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">শিক্ষকের নাম</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="পুরো নাম" className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-base font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" />
         </div>
         <div className="md:col-span-3">
-          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Max Periods/Day</label>
-          <input type="number" min="1" max={maxClassPeriods} value={maxPeriodsPerDay} onChange={(e) => setMaxPeriodsPerDay(e.target.value)} placeholder={`Max ${maxClassPeriods}`} className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" />
+          <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">সর্বোচ্চ পিরিয়ড/দিন</label>
+          <input type="text" inputMode="numeric" value={engToBng(maxPeriodsPerDay)} onChange={(e) => setMaxPeriodsPerDay(bngToEng(e.target.value))} placeholder={`সর্বোচ্চ ${engToBng(maxClassPeriods)}`} className="w-full p-3.5 bg-white border border-stone-300 rounded-sm text-base font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm text-center" />
         </div>
         <div className="md:col-span-3">
-          <button onClick={addTeacher} className="w-full bg-[#6b4c9a] text-white px-5 py-3.5 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm">+ Add Teacher</button>
+          <button onClick={addTeacher} className="w-full bg-[#6b4c9a] text-white px-5 py-3.5 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm">+ শিক্ষক যোগ করুন</button>
         </div>
       </div>
 
@@ -1464,23 +1482,22 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
                   autoFocus
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Name"
-                  className="w-full p-2 border border-stone-300 rounded-sm text-sm font-bold focus:outline-none focus:border-[#6b4c9a]"
+                  placeholder="নাম"
+                  className="w-full p-2 border border-stone-300 rounded-sm text-base font-bold focus:outline-none focus:border-[#6b4c9a]"
                 />
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">Max/Day</span>
+                  <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">সর্বোচ্চ/দিন</span>
                   <input
-                    type="number"
-                    min="1"
-                    max={maxClassPeriods}
-                    value={editPeriods}
-                    onChange={(e) => setEditPeriods(e.target.value)}
-                    className="flex-1 p-2 border border-stone-300 rounded-sm text-sm font-bold text-center focus:outline-none focus:border-[#6b4c9a]"
+                    type="text"
+                    inputMode="numeric"
+                    value={engToBng(editPeriods)}
+                    onChange={(e) => setEditPeriods(bngToEng(e.target.value))}
+                    className="flex-1 p-2 border border-stone-300 rounded-sm text-base font-bold text-center focus:outline-none focus:border-[#6b4c9a]"
                   />
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <button onClick={saveEdit} className="flex-1 text-[10px] bg-[#6b4c9a] text-white uppercase font-bold px-3 py-2.5 rounded-sm hover:bg-[#5a3f82]">Save</button>
-                  <button onClick={() => setEditingId(null)} className="flex-1 text-[10px] border border-stone-300 bg-white text-stone-700 uppercase font-bold px-3 py-2.5 rounded-sm hover:bg-stone-50">Cancel</button>
+                  <button onClick={saveEdit} className="flex-1 text-xs bg-[#6b4c9a] text-white uppercase font-bold px-3 py-2.5 rounded-sm hover:bg-[#5a3f82]">সংরক্ষণ</button>
+                  <button onClick={() => setEditingId(null)} className="flex-1 text-xs border border-stone-300 bg-white text-stone-700 uppercase font-bold px-3 py-2.5 rounded-sm hover:bg-stone-50">বাতিল</button>
                 </div>
               </div>
             )
@@ -1491,19 +1508,19 @@ function TeachersSection({ teachers, setTeachers, maxClassPeriods, qualification
           return (
             <div key={t.id} className="group bg-white flex flex-col justify-between border border-stone-200 p-4 rounded-sm shadow-sm hover:border-[#dad3e3] transition-colors">
               <div>
-                <h4 className="font-bold text-stone-900 text-sm mb-1">{t.name}</h4>
-                <p className={`text-xs font-semibold ${effectiveMax < t.maxPeriodsPerDay ? 'text-[#b4483e]' : 'text-stone-500'}`}>
-                  Limit: {effectiveMax} periods/day
+                <h4 className="font-bold text-stone-900 text-base mb-1">{t.name}</h4>
+                <p className={`text-sm font-semibold ${effectiveMax < t.maxPeriodsPerDay ? 'text-[#b4483e]' : 'text-stone-500'}`}>
+                  সীমা: {engToBng(effectiveMax)} পিরিয়ড/দিন
                 </p>
               </div>
               <div className="flex items-center gap-2 mt-4 pt-3 border-t border-stone-100">
-                <button onClick={() => startEdit(t)} className="flex-1 bg-[#fbf9fc] text-[#6b4c9a] text-[10px] font-bold uppercase tracking-widest py-2 rounded-sm hover:bg-[#f3eff8] transition-colors">Edit</button>
-                <button onClick={() => removeTeacher(t.id)} className="flex-1 bg-[#fcf8f8] text-[#b4483e] text-[10px] font-bold uppercase tracking-widest py-2 rounded-sm hover:bg-red-50 transition-colors">Delete</button>
+                <button onClick={() => startEdit(t)} className="flex-1 bg-[#fbf9fc] text-[#6b4c9a] text-xs font-bold uppercase tracking-widest py-2 rounded-sm hover:bg-[#f3eff8] transition-colors">এডিট</button>
+                <button onClick={() => removeTeacher(t.id)} className="flex-1 bg-[#fcf8f8] text-[#b4483e] text-xs font-bold uppercase tracking-widest py-2 rounded-sm hover:bg-red-50 transition-colors">মুছুন</button>
               </div>
             </div>
           )
         })}
-        {teachers.length === 0 && <p className="text-sm font-medium text-stone-400 italic p-4">No teachers available.</p>}
+        {teachers.length === 0 && <p className="text-base font-medium text-stone-400 italic p-4">কোনো শিক্ষক নেই।</p>}
       </div>
     </section>
   )
@@ -1528,18 +1545,18 @@ function TeacherSubjectCheckmarks({ teachers, subjects, qualifications, setQuali
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">6. Qualifications</h2>
-      <p className="text-sm font-medium text-stone-600 mt-2 mb-6">Mark which subjects each teacher is qualified to teach.</p>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৬. শিক্ষকবৃন্দ যে যে বিষয় পড়াবেন</h2>
+      <p className="text-base font-medium text-stone-600 mt-2 mb-6">কোন শিক্ষক কোন বিষয় পড়াবেন তা চিহ্নিত করুন।</p>
 
       {teachers.length === 0 || subjects.length === 0 ? (
-        <div className="p-6 rounded-sm border border-dashed border-stone-300 bg-stone-50 text-center text-sm font-medium text-stone-500">
-          Add teachers and subjects above.
+        <div className="p-6 rounded-sm border border-dashed border-stone-300 bg-stone-50 text-center text-base font-medium text-stone-500">
+          উপরে শিক্ষক এবং বিষয় যোগ করুন।
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {teachers.map(t => (
             <div key={t.id} className="border border-stone-200 bg-white rounded-sm p-5 shadow-sm hover:border-[#dad3e3] transition-colors">
-              <h3 className="font-bold text-stone-900 uppercase tracking-wider mb-4 border-b border-stone-100 pb-3">{t.name}</h3>
+              <h3 className="font-bold text-stone-900 uppercase tracking-wider mb-4 border-b border-stone-100 pb-3 text-base">{t.name}</h3>
               <div className="flex flex-col gap-3">
                 {subjects.map(s => {
                   const isQual = qualifications.some(q => q.teacherId === t.id && q.subjectId === s.id)
@@ -1549,9 +1566,9 @@ function TeacherSubjectCheckmarks({ teachers, subjects, qualifications, setQuali
                         type="checkbox"
                         checked={isQual}
                         onChange={() => toggleQual(t.id, s.id)}
-                        className="w-4 h-4 text-[#6b4c9a] bg-stone-50 border-stone-300 rounded-sm focus:ring-[#6b4c9a] cursor-pointer accent-[#6b4c9a]"
+                        className="w-5 h-5 text-[#6b4c9a] bg-stone-50 border-stone-300 rounded-sm focus:ring-[#6b4c9a] cursor-pointer accent-[#6b4c9a]"
                       />
-                      <span className={`text-sm select-none transition-colors ${isQual ? 'text-stone-900 font-bold' : 'text-stone-500 font-medium group-hover:text-stone-800'}`}>
+                      <span className={`text-base select-none transition-colors ${isQual ? 'text-stone-900 font-bold' : 'text-stone-500 font-medium group-hover:text-stone-800'}`}>
                         {s.name}
                       </span>
                     </label>
@@ -1585,45 +1602,45 @@ function TeacherCapacityDashboard({ maxClassPeriods, deficits }: TeacherCapacity
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide border-b border-stone-200 pb-4 mb-6">7. Teacher Requirements & Deficits</h2>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide border-b border-stone-200 pb-4 mb-6">৭. শিক্ষক প্রয়োজন ও ঘাটতি</h2>
       
       {unassignedCurriculum > 0 && (
         <div className="mb-6 p-4 bg-[#fcf2f1] border border-[#f2d5d2] rounded-sm">
-          <p className="text-sm font-bold text-[#b4483e]">Incomplete Curriculum Matrix!</p>
-          <p className="text-xs font-medium text-[#b4483e] mt-1">You have {unassignedCurriculum} class periods without any assigned subject in the matrix. Complete Section 4 so all classes have full schedules.</p>
+          <p className="text-base font-bold text-[#b4483e]">অসম্পূর্ণ কারিকুলাম ম্যাট্রিক্স!</p>
+          <p className="text-sm font-medium text-[#b4483e] mt-1">আপনার ম্যাট্রিক্সে {engToBng(unassignedCurriculum)}টি ক্লাস পিরিয়ডে কোনো বিষয় অ্যাসাইন করা নেই। সম্পূর্ণ শিডিউলের জন্য সেকশন ৪ পূরণ করুন।</p>
         </div>
       )}
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-stone-50 p-5 rounded-sm border border-stone-200 text-center shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">Total Curriculum Required</p>
-          <p className="text-3xl font-black text-stone-900">{totalReq} <span className="text-xs font-bold uppercase text-stone-400">periods/wk</span></p>
+          <p className="text-sm font-bold uppercase tracking-wider text-stone-500 mb-1">মোট কারিকুলাম প্রয়োজন</p>
+          <p className="text-3xl font-black text-stone-900">{engToBng(totalReq)} <span className="text-sm font-bold uppercase text-stone-400">পিরিয়ড/সপ্তাহ</span></p>
         </div>
         <div className="bg-stone-50 p-5 rounded-sm border border-stone-200 text-center shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">Total Teacher Capacity</p>
-          <p className="text-3xl font-black text-[#4a6b3a]">{totalCap} <span className="text-xs font-bold uppercase text-[#4a6b3a]/70">periods/wk</span></p>
+          <p className="text-sm font-bold uppercase tracking-wider text-stone-500 mb-1">মোট শিক্ষক ধারণক্ষমতা</p>
+          <p className="text-3xl font-black text-[#4a6b3a]">{engToBng(totalCap)} <span className="text-sm font-bold uppercase text-[#4a6b3a]/70">পিরিয়ড/সপ্তাহ</span></p>
         </div>
         <div className={`${overallDeficit > 0 ? 'bg-[#fcf2f1] border-[#f2d5d2]' : 'bg-[#f2f7ee] border-[#d9e6cd]'} shadow-sm p-5 rounded-sm border text-center`}>
-          <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${overallDeficit > 0 ? 'text-[#b4483e]' : 'text-[#4a6b3a]'}`}>Overall Deficit</p>
-          <p className={`text-3xl font-black ${overallDeficit > 0 ? 'text-[#b4483e]' : 'text-[#4a6b3a]'}`}>{overallDeficit}</p>
+          <p className={`text-sm font-bold uppercase tracking-wider mb-1 ${overallDeficit > 0 ? 'text-[#b4483e]' : 'text-[#4a6b3a]'}`}>সার্বিক ঘাটতি</p>
+          <p className={`text-3xl font-black ${overallDeficit > 0 ? 'text-[#b4483e]' : 'text-[#4a6b3a]'}`}>{engToBng(overallDeficit)}</p>
         </div>
       </div>
 
       {/* Detailed Subject-wise Requirements & Teacher Capacity Table */}
       <div className="bg-white border border-stone-200 shadow-sm rounded-sm mb-8 overflow-hidden">
         <div className="bg-[#fbf9fc] px-6 py-4 border-b border-[#dad3e3] flex justify-between items-center">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-stone-800">Subject-wise Requirements & Qualified Capacity</h3>
+          <h3 className="text-base font-bold uppercase tracking-wider text-stone-800">বিষয়ভিত্তিক প্রয়োজন ও যোগ্য ধারণক্ষমতা</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-base text-left">
             <thead className="border-b border-stone-200 bg-stone-50">
               <tr>
-                <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Subject</th>
-                <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Needed / Week</th>
-                <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Qualified Teachers</th>
-                <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Qualified Capacity</th>
-                <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Status</th>
+                <th className="py-3 px-6 text-base font-bold uppercase tracking-wider text-stone-500">বিষয়</th>
+                <th className="py-3 px-6 text-base font-bold uppercase tracking-wider text-stone-500">প্রয়োজন / সপ্তাহ</th>
+                <th className="py-3 px-6 text-base font-bold uppercase tracking-wider text-stone-500">যোগ্য শিক্ষক</th>
+                <th className="py-3 px-6 text-base font-bold uppercase tracking-wider text-stone-500">যোগ্য ধারণক্ষমতা</th>
+                <th className="py-3 px-6 text-base font-bold uppercase tracking-wider text-stone-500">অবস্থা</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -1633,36 +1650,36 @@ function TeacherCapacityDashboard({ maxClassPeriods, deficits }: TeacherCapacity
 
                 return (
                   <tr key={s.id} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="py-4 px-6 font-bold text-stone-900">{s.name}</td>
-                    <td className="py-4 px-6 font-black text-stone-800">{s.req} <span className="text-xs text-stone-400 font-bold uppercase">periods</span></td>
+                    <td className="py-4 px-6 font-bold text-stone-900 text-base">{s.name}</td>
+                    <td className="py-4 px-6 font-black text-stone-800 text-base">{engToBng(s.req)} <span className="text-xs text-stone-400 font-bold uppercase">পিরিয়ড</span></td>
                     <td className="py-4 px-6">
                       {s.qualifiedTeachers.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {s.qualifiedTeachers.map(t => (
-                            <span key={t.id} className="inline-block bg-white shadow-sm border border-stone-200 text-stone-800 font-bold text-[10px] uppercase tracking-wider px-2 py-1 rounded-sm">
+                            <span key={t.id} className="inline-block bg-white shadow-sm border border-stone-200 text-stone-800 font-bold text-sm uppercase tracking-wider px-2 py-1 rounded-sm">
                               {t.name}
                             </span>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-xs font-bold text-[#b4483e] italic">No teacher assigned</span>
+                        <span className="text-sm font-bold text-[#b4483e] italic">কোনো শিক্ষক দেওয়া হয়নি</span>
                       )}
                     </td>
-                    <td className="py-4 px-6 font-bold text-stone-700">
-                      {s.rawCapacity} <span className="text-xs text-stone-400 font-bold uppercase">periods/wk</span>
+                    <td className="py-4 px-6 font-bold text-stone-700 text-base">
+                      {engToBng(s.rawCapacity)} <span className="text-xs text-stone-400 font-bold uppercase">পিরিয়ড/সপ্তাহ</span>
                     </td>
                     <td className="py-4 px-6">
                       {isNoTeacher ? (
-                        <span className="inline-block bg-[#fcf2f1] text-[#b4483e] border border-[#f2d5d2] shadow-sm text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-sm">
-                          Teacher Needed
+                        <span className="inline-block bg-[#fcf2f1] text-[#b4483e] border border-[#f2d5d2] shadow-sm text-sm font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-sm">
+                          শিক্ষক প্রয়োজন
                         </span>
                       ) : hasDeficit ? (
-                        <span className="inline-block bg-[#fdf6ec] text-[#9a6a1f] border border-[#f0dfc0] shadow-sm text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-sm">
-                          Short by {s.deficit}
+                        <span className="inline-block bg-[#fdf6ec] text-[#9a6a1f] border border-[#f0dfc0] shadow-sm text-sm font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-sm">
+                          ঘাটতি {engToBng(s.deficit)}
                         </span>
                       ) : (
-                        <span className="inline-block bg-[#f2f7ee] text-[#4a6b3a] border border-[#d9e6cd] shadow-sm text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-sm">
-                          Sufficient {s.balance > 0 && `(+${s.balance})`}
+                        <span className="inline-block bg-[#f2f7ee] text-[#4a6b3a] border border-[#d9e6cd] shadow-sm text-sm font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-sm">
+                          পর্যাপ্ত {s.balance > 0 && `(+${engToBng(s.balance)})`}
                         </span>
                       )}
                     </td>
@@ -1670,7 +1687,7 @@ function TeacherCapacityDashboard({ maxClassPeriods, deficits }: TeacherCapacity
                 )
               })}
               {subjectStats.length === 0 && (
-                <tr><td colSpan={5} className="py-8 text-center text-stone-400 italic font-medium">No subjects added yet.</td></tr>
+                <tr><td colSpan={5} className="py-8 text-center text-stone-400 italic font-medium">এখনো কোনো বিষয় যোগ করা হয়নি।</td></tr>
               )}
             </tbody>
           </table>
@@ -1679,31 +1696,30 @@ function TeacherCapacityDashboard({ maxClassPeriods, deficits }: TeacherCapacity
 
       {/* Teacher Calculator */}
       <div className="bg-[#fbf9fc] p-6 md:p-8 rounded-sm border border-[#dad3e3] shadow-sm">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-[#6b4c9a] mb-5">Teacher Needed Calculator</h3>
+        <h3 className="text-base font-bold uppercase tracking-wider text-[#6b4c9a] mb-5">শিক্ষক প্রয়োজন ক্যালকুলেটর</h3>
         <div className="flex flex-col md:flex-row md:items-center gap-6">
           <div className="shrink-0 w-full md:w-auto">
-            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">If a new teacher works:</label>
+            <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">যদি একজন নতুন শিক্ষক কাজ করেন:</label>
             <div className="flex items-center gap-3">
               <input
-                type="number"
-                min="1"
-                max={maxClassPeriods}
-                value={calcPeriodsPerDay}
-                onChange={(e) => setCalcPeriodsPerDay(e.target.value)}
-                placeholder={`1 to ${maxClassPeriods}`}
-                className="w-24 p-3 bg-white border border-[#dad3e3] shadow-inner rounded-sm text-sm font-bold focus:outline-none focus:border-[#6b4c9a]"
+                type="text"
+                inputMode="numeric"
+                value={engToBng(calcPeriodsPerDay)}
+                onChange={(e) => setCalcPeriodsPerDay(bngToEng(e.target.value))}
+                placeholder={`১ থেকে ${engToBng(maxClassPeriods)}`}
+                className="w-24 p-3 bg-white border border-[#dad3e3] shadow-inner rounded-sm text-base font-bold focus:outline-none focus:border-[#6b4c9a] text-center"
               />
-              <span className="text-xs font-bold uppercase text-stone-500">periods/day (Max {maxClassPeriods})</span>
+              <span className="text-sm font-bold uppercase text-stone-500">পিরিয়ড/দিন (সর্বোচ্চ {engToBng(maxClassPeriods)})</span>
             </div>
           </div>
           
           <div className="hidden md:block w-px h-12 bg-[#dad3e3]"></div>
 
           <div className="flex-1 w-full border-t border-[#dad3e3] pt-5 md:border-t-0 md:pt-0">
-            <p className="text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Estimated Teachers Needed:</p>
+            <p className="text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">আনুমানিক শিক্ষক প্রয়োজন:</p>
             <p className="text-2xl font-black text-[#6b4c9a]">
-              {totalNewTeachersNeeded} <span className="text-base">additional teacher(s)</span>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#6b4c9a]/70 ml-2 block sm:inline mt-1 sm:mt-0">to satisfy overall school demand.</span>
+              {totalNewTeachersNeeded === '—' ? '—' : engToBng(totalNewTeachersNeeded)} <span className="text-lg">অতিরিক্ত শিক্ষক</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#6b4c9a]/70 ml-2 block sm:inline mt-1 sm:mt-0">স্কুলের সার্বিক চাহিদা পূরণে।</span>
             </p>
           </div>
         </div>
@@ -1763,11 +1779,11 @@ function PreferredTeacherSection({ classes, subjects, requirements, teachers, qu
       >
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">8. Preferred Teacher per Class</h2>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#6b4c9a] bg-[#fbf9fc] border border-[#dad3e3] px-2.5 py-1 rounded-sm shadow-sm">Optional</span>
+            <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৮. ক্লাস অনুযায়ী পছন্দের শিক্ষক</h2>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#6b4c9a] bg-[#fbf9fc] border border-[#dad3e3] px-2.5 py-1 rounded-sm shadow-sm">ঐচ্ছিক</span>
           </div>
-          <p className="text-sm font-medium text-stone-600 mt-1">
-            Override auto-assignment to pin a specific teacher to a class's subject.
+          <p className="text-base font-medium text-stone-600 mt-1">
+            অটো-অ্যাসাইনমেন্ট বাতিল করে নির্দিষ্ট বিষয় ও ক্লাসের জন্য নির্দিষ্ট শিক্ষক নির্ধারণ করুন।
           </p>
         </div>
         <div className={`transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
@@ -1780,66 +1796,66 @@ function PreferredTeacherSection({ classes, subjects, requirements, teachers, qu
           <div className="p-6 md:p-8 border-t border-stone-200">
             <div className="bg-[#fbf9fc] p-6 rounded-sm border border-[#dad3e3] mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 items-end shadow-sm">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Class</label>
+                <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">ক্লাস</label>
                 <Dropdown
                   options={classes.map((c) => ({ label: c.name, value: c.id }))}
                   value={classId || null}
                   onChange={(v) => { setClassId(String(v)); setSection(''); setSubjectId(''); setTeacherId('') }}
-                  placeholder="Select class"
+                  placeholder="ক্লাস নির্বাচন করুন"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Section</label>
+                <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">শাখা</label>
                 {sectionOptions.length > 0 ? (
                   <Dropdown
                     options={sectionOptions.map((s) => ({ label: s, value: s }))}
                     value={section || null}
                     onChange={(v) => { setSection(String(v)); setSubjectId(''); setTeacherId('') }}
-                    placeholder="Select section"
+                    placeholder="শাখা নির্বাচন করুন"
                   />
                 ) : (
-                  <div className="p-3.5 text-xs font-medium text-stone-400 italic">No sections</div>
+                  <div className="p-3.5 text-base font-medium text-stone-400 italic">কোনো শাখা নেই</div>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Subject</label>
+                <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">বিষয়</label>
                 {subjectOptions.length > 0 ? (
                   <Dropdown
                     options={subjectOptions.map((s) => ({ label: s.name, value: s.id }))}
                     value={subjectId || null}
                     onChange={(v) => { setSubjectId(String(v)); setTeacherId('') }}
-                    placeholder="Select subject"
+                    placeholder="বিষয় নির্বাচন করুন"
                   />
                 ) : (
-                  <div className="p-3.5 text-xs font-medium text-stone-400 italic">Assign curriculum first</div>
+                  <div className="p-3.5 text-base font-medium text-stone-400 italic">আগে কারিকুলাম দিন</div>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Teacher</label>
+                <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">শিক্ষক</label>
                 {teacherOptions.length > 0 ? (
                   <Dropdown
                     options={teacherOptions.map((t) => ({ label: t.name, value: t.id }))}
                     value={teacherId || null}
                     onChange={(v) => setTeacherId(String(v))}
-                    placeholder="Select teacher"
+                    placeholder="শিক্ষক নির্বাচন করুন"
                     hasSearch
                   />
                 ) : (
-                  <div className="p-3.5 text-xs font-medium text-stone-400 italic">No qualified teacher yet</div>
+                  <div className="p-3.5 text-base font-medium text-stone-400 italic">কোনো যোগ্য শিক্ষক নেই</div>
                 )}
               </div>
-              <button onClick={addPreferred} className="bg-[#6b4c9a] text-white px-5 py-3.5 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm">
-                + Pin
+              <button onClick={addPreferred} className="bg-[#6b4c9a] text-white px-5 py-3.5 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm">
+                + পিন করুন
               </button>
             </div>
 
             <div className="overflow-x-auto border border-stone-200 rounded-sm shadow-sm">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-base text-left">
                 <thead className="bg-stone-50 border-b border-stone-200">
                   <tr>
-                    <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500">Class</th>
-                    <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500">Subject</th>
-                    <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider text-stone-500">Teacher</th>
+                    <th className="py-3 px-4 text-sm font-bold uppercase tracking-wider text-stone-500">ক্লাস</th>
+                    <th className="py-3 px-4 text-sm font-bold uppercase tracking-wider text-stone-500">বিষয়</th>
+                    <th className="py-3 px-4 text-sm font-bold uppercase tracking-wider text-stone-500">শিক্ষক</th>
                     <th className="py-3 px-4"></th>
                   </tr>
                 </thead>
@@ -1851,14 +1867,14 @@ function PreferredTeacherSection({ classes, subjects, requirements, teachers, qu
                     return (
                       <tr key={p.id} className="hover:bg-stone-50 transition-colors">
                         <td className="py-4 px-4 font-bold text-stone-800">{c?.name}{p.section}</td>
-                        <td className="py-4 px-4 font-semibold text-stone-800">{s?.name || 'Unknown subject'}</td>
-                        <td className="py-4 px-4 font-semibold text-[#6b4c9a]">{t?.name || 'Unknown teacher'}</td>
-                        <td className="py-4 px-4 text-right"><button onClick={() => removePreferred(p.id)} className="text-xs font-bold uppercase tracking-wider text-[#b4483e] hover:underline">Remove</button></td>
+                        <td className="py-4 px-4 font-semibold text-stone-800">{s?.name || 'অজানা বিষয়'}</td>
+                        <td className="py-4 px-4 font-semibold text-[#6b4c9a]">{t?.name || 'অজানা শিক্ষক'}</td>
+                        <td className="py-4 px-4 text-right"><button onClick={() => removePreferred(p.id)} className="text-sm font-bold uppercase tracking-wider text-[#b4483e] hover:underline">মুছুন</button></td>
                       </tr>
                     )
                   })}
                   {preferredAssignments.length === 0 && (
-                    <tr><td colSpan={4} className="py-10 text-center text-sm font-medium text-stone-400 italic">No overrides set.</td></tr>
+                    <tr><td colSpan={4} className="py-10 text-center text-base font-medium text-stone-400 italic">কোনো ওভাররাইড সেট করা নেই।</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1904,9 +1920,9 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
     no_valid_solution: 'bg-[#fcf2f1] text-[#b4483e] border border-[#f2d5d2]',
   }
   const statusLabel: Record<string, string> = {
-    success: 'Generated successfully',
-    success_with_warnings: 'Generated — some periods still need a teacher',
-    no_valid_solution: 'Could not schedule anything',
+    success: 'সফলভাবে তৈরি হয়েছে',
+    success_with_warnings: 'তৈরি হয়েছে — কিছু পিরিয়ডে এখনো শিক্ষক প্রয়োজন',
+    no_valid_solution: 'কিছুই শিডিউল করা যায়নি',
   }
 
   return (
@@ -1914,23 +1930,23 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
       <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8 print:hidden">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div className="flex gap-3 flex-wrap items-center">
-            <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-sm ${statusStyles[result.status]}`}>
+            <span className={`text-sm font-bold uppercase tracking-wider px-3 py-1.5 rounded-sm ${statusStyles[result.status]}`}>
               {statusLabel[result.status]}
             </span>
-            <span className="text-sm font-medium text-stone-500">{result.totalScheduled}/{result.totalRequired} lessons placed</span>
+            <span className="text-base font-medium text-stone-500">{engToBng(result.totalRequired)} টির মধ্যে {engToBng(result.totalScheduled)} টি লেসন বসানো হয়েছে</span>
           </div>
-          <button onClick={onGenerate} className="bg-white border border-stone-300 text-stone-800 px-6 py-3 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-stone-50 transition-colors shadow-sm">
-            Re-generate & Shuffle
+          <button onClick={onGenerate} className="bg-white border border-stone-300 text-stone-800 px-6 py-3 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-stone-50 transition-colors shadow-sm">
+            পুনরায় তৈরি ও সাফল করুন
           </button>
         </div>
 
         {result.unscheduled.length > 0 && (
           <div className="mt-6 p-5 bg-[#fcf2f1] border border-[#f2d5d2] rounded-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#b4483e] mb-3">Unscheduled Periods (Missing Teachers)</h3>
-            <ul className="text-xs font-medium text-[#8f3a32] space-y-2 max-h-40 overflow-y-auto">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[#b4483e] mb-3">শিডিউল না হওয়া পিরিয়ড (শিক্ষক নেই)</h3>
+            <ul className="text-base font-medium text-[#8f3a32] space-y-2 max-h-40 overflow-y-auto">
               {result.unscheduled.map((u, i) => (
                 <li key={i} className="flex flex-wrap items-start gap-2">
-                  <span className="shrink-0 bg-white border border-[#f2d5d2] text-[#b4483e] text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm shadow-sm">Missing</span>
+                  <span className="shrink-0 bg-white border border-[#f2d5d2] text-[#b4483e] text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm shadow-sm">নেই</span>
                   <span><strong>{u.className}{u.section} — {u.subject}:</strong> {u.reason}</span>
                 </li>
               ))}
@@ -1946,12 +1962,12 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
         <div className="flex flex-wrap justify-between items-end gap-4 mb-8 print:hidden">
           <div className="flex gap-4 items-end flex-wrap">
             <div className="w-64">
-              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">View</label>
+              <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">ভিউ</label>
               <Dropdown
                 options={[
-                  { label: 'All Teachers at Once', value: 'all_teachers' },
-                  { label: 'Individual Teacher', value: 'teacher' },
-                  { label: 'Individual Class / Section', value: 'class' },
+                  { label: 'একযোগে সব শিক্ষক', value: 'all_teachers' },
+                  { label: 'নির্দিষ্ট শিক্ষক', value: 'teacher' },
+                  { label: 'নির্দিষ্ট ক্লাস / শাখা', value: 'class' },
                 ]}
                 value={mode}
                 onChange={(v) => setMode(String(v))}
@@ -1960,12 +1976,12 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
 
             {mode === 'teacher' && (
               <div className="w-64">
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Teacher</label>
+                <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">শিক্ষক</label>
                 <Dropdown
                   options={teachers.map((t) => ({ label: t.name, value: t.id }))}
                   value={activeTeacher || null}
                   onChange={(v) => setSelectedTeacher(String(v))}
-                  placeholder="Select teacher"
+                  placeholder="শিক্ষক নির্বাচন করুন"
                   hasSearch
                 />
               </div>
@@ -1973,27 +1989,27 @@ function ViewTab({ days, classes, teachers, result, onGenerate, maxClassPeriods 
             
             {mode === 'class' && (
               <div className="w-64">
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">Class / Section</label>
+                <label className="block text-sm font-bold uppercase tracking-wider text-stone-700 mb-2">ক্লাস / শাখা</label>
                 <Dropdown
                   options={classSectionOptions.map((o) => ({ label: o.label, value: o.key }))}
                   value={activeClassSection || null}
                   onChange={(v) => setSelectedClassSection(String(v))}
-                  placeholder="Select class"
+                  placeholder="ক্লাস নির্বাচন করুন"
                   hasSearch
                 />
               </div>
             )}
           </div>
-          <button onClick={() => window.print()} className="bg-stone-900 text-white px-6 py-3.5 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-stone-800 transition-colors shadow-sm flex items-center gap-2">
+          <button onClick={() => window.print()} className="bg-stone-900 text-white px-6 py-3.5 rounded-sm text-sm uppercase tracking-widest font-bold hover:bg-stone-800 transition-colors shadow-sm flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Download PDF / Print
+            পিডিএফ ডাউনলোড / প্রিন্ট করুন
           </button>
         </div>
 
         <div id="printable-routine" className="space-y-12">
           {mode === 'all_teachers' && (
             <>
-              <h2 className="text-xl font-black text-center uppercase tracking-wide mb-2 text-stone-900 border-b border-stone-200 pb-4">Master Teacher Routine</h2>
+              <h2 className="text-xl font-black text-center uppercase tracking-wide mb-2 text-stone-900 border-b border-stone-200 pb-4">মাস্টার শিক্ষক রুটিন</h2>
               {teachers.map(t => (
                 <TeacherGrid
                   key={t.id}
@@ -2054,29 +2070,29 @@ function TeacherWorkloadSummary({ entries, teachers, days, maxClassPeriods }: Te
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8 print:hidden">
-      <h2 className="text-lg font-semibold text-stone-900 uppercase tracking-wide mb-4">Teacher Workload Summary</h2>
+      <h2 className="text-xl font-semibold text-stone-900 uppercase tracking-wide mb-4">শিক্ষকদের কাজের চাপের সারসংক্ষেপ</h2>
       <div className="overflow-x-auto border border-stone-200 shadow-sm rounded-sm">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-base text-left">
           <thead className="border-b border-stone-200 bg-stone-50">
             <tr>
-              <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Teacher</th>
-              <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Assigned Periods</th>
-              <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Max Capacity</th>
-              <th className="py-3 px-6 text-xs font-bold uppercase tracking-wider text-stone-500">Utilization</th>
+              <th className="py-3 px-6 text-sm font-bold uppercase tracking-wider text-stone-500">শিক্ষক</th>
+              <th className="py-3 px-6 text-sm font-bold uppercase tracking-wider text-stone-500">অ্যাসাইনকৃত পিরিয়ড</th>
+              <th className="py-3 px-6 text-sm font-bold uppercase tracking-wider text-stone-500">সর্বোচ্চ ধারণক্ষমতা</th>
+              <th className="py-3 px-6 text-sm font-bold uppercase tracking-wider text-stone-500">ব্যবহার</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
             {stats.map(s => (
               <tr key={s.id} className="hover:bg-stone-50/50 transition-colors">
                 <td className="py-4 px-6 font-bold text-stone-800">{s.name}</td>
-                <td className="py-4 px-6 font-black text-stone-900">{s.assigned}</td>
-                <td className="py-4 px-6 font-bold text-stone-600">{s.maxCap}</td>
+                <td className="py-4 px-6 font-black text-stone-900">{engToBng(s.assigned)}</td>
+                <td className="py-4 px-6 font-bold text-stone-600">{engToBng(s.maxCap)}</td>
                 <td className="py-4 px-6">
                   <div className="flex items-center gap-3">
                     <div className="w-full bg-stone-200 rounded-full h-2.5 max-w-[120px] shadow-inner">
                       <div className="bg-[#6b4c9a] h-2.5 rounded-full" style={{ width: `${s.utilization}%` }}></div>
                     </div>
-                    <span className="text-xs font-black text-stone-600">{s.utilization}%</span>
+                    <span className="text-sm font-black text-stone-600">{engToBng(s.utilization)}%</span>
                   </div>
                 </td>
               </tr>
@@ -2106,25 +2122,25 @@ function TeacherGrid({ days, periods, entries, title, compact = false }: Teacher
         {title}
       </h3>
       <div className="overflow-x-auto rounded-sm border border-stone-200 shadow-sm print:border-stone-400">
-        <table className="w-full border-collapse text-sm text-center table-fixed min-w-[600px]">
+        <table className="w-full border-collapse text-base text-center table-fixed min-w-[600px]">
           <thead className="bg-stone-100 print:bg-stone-100">
             <tr>
-              <th className="border border-stone-200 print:border-stone-400 p-2.5 text-[10px] font-bold uppercase tracking-widest text-stone-600 print:text-stone-700 w-24">Day</th>
-              {periodList.map((p) => <th key={p} className="border border-stone-200 print:border-stone-400 p-2.5 text-[10px] font-bold uppercase tracking-widest text-stone-600 print:text-stone-700">Period {p}</th>)}
+              <th className="border border-stone-200 print:border-stone-400 p-2.5 text-xs font-bold uppercase tracking-widest text-stone-600 print:text-stone-700 w-24">দিন</th>
+              {periodList.map((p) => <th key={p} className="border border-stone-200 print:border-stone-400 p-2.5 text-xs font-bold uppercase tracking-widest text-stone-600 print:text-stone-700">পিরিয়ড {engToBng(p)}</th>)}
             </tr>
           </thead>
           <tbody>
             {days.map((day) => (
               <tr key={day} className="hover:bg-stone-50/50 print:bg-white transition-colors">
-                <td className="border border-stone-200 print:border-stone-400 p-3 font-bold text-stone-800 text-[10px] uppercase tracking-widest bg-stone-50 print:bg-stone-50">{day.slice(0,3)}</td>
+                <td className="border border-stone-200 print:border-stone-400 p-3 font-bold text-stone-800 text-sm uppercase tracking-widest bg-stone-50 print:bg-stone-50">{DAY_SHORT_BN[day]}</td>
                 {periodList.map((p) => {
                   const e = at(day, p)
                   return (
                     <td key={p} className="border border-stone-200 print:border-stone-400 p-2 break-words bg-white align-middle">
                       {e ? (
                         <div className="px-1 flex flex-col items-center justify-center gap-1">
-                          <div className="font-bold text-stone-900 leading-tight print:text-black">{e.subject}</div>
-                          <div className="text-[9px] uppercase tracking-widest text-white bg-[#6b4c9a] print:bg-transparent print:text-stone-600 font-bold px-1.5 py-0.5 rounded-sm print:border print:border-stone-300 inline-block shadow-sm print:shadow-none">{e.className}{e.section}</div>
+                          <div className="font-bold text-stone-900 text-sm leading-tight print:text-black">{e.subject}</div>
+                          <div className="text-xs uppercase tracking-widest text-white bg-[#6b4c9a] print:bg-transparent print:text-stone-600 font-bold px-1.5 py-0.5 rounded-sm print:border print:border-stone-300 inline-block shadow-sm print:shadow-none">{e.className}{e.section}</div>
                         </div>
                       ) : (
                         <span className="text-stone-300 print:text-stone-300 font-medium">—</span>
@@ -2154,19 +2170,19 @@ function ClassGrid({ days, periods, entries, title }: ClassGridProps) {
 
   return (
     <div className="break-inside-avoid">
-      <h2 className="text-2xl font-black text-center uppercase tracking-wide mb-6 text-stone-900">{title} — Weekly Routine</h2>
+      <h2 className="text-2xl font-black text-center uppercase tracking-wide mb-6 text-stone-900">{title} — সাপ্তাহিক রুটিন</h2>
       <div className="overflow-x-auto rounded-sm border border-stone-200 shadow-sm print:border-stone-400">
-        <table className="w-full border-collapse text-sm text-center table-fixed min-w-[600px]">
+        <table className="w-full border-collapse text-base text-center table-fixed min-w-[600px]">
           <thead className="bg-stone-100 print:bg-stone-100">
             <tr>
-              <th className="border border-stone-200 print:border-stone-400 p-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 print:text-stone-700 w-24">Day</th>
-              {periodList.map((p) => <th key={p} className="border border-stone-200 print:border-stone-400 p-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 print:text-stone-700">Period {p}</th>)}
+              <th className="border border-stone-200 print:border-stone-400 p-3 text-xs font-bold uppercase tracking-widest text-stone-600 print:text-stone-700 w-24">দিন</th>
+              {periodList.map((p) => <th key={p} className="border border-stone-200 print:border-stone-400 p-3 text-xs font-bold uppercase tracking-widest text-stone-600 print:text-stone-700">পিরিয়ড {engToBng(p)}</th>)}
             </tr>
           </thead>
           <tbody>
             {days.map((day) => (
               <tr key={day} className="hover:bg-stone-50/50 print:bg-white transition-colors">
-                <td className="border border-stone-200 print:border-stone-400 p-3 font-bold text-stone-800 uppercase tracking-widest bg-stone-50 print:bg-stone-50 text-[10px]">{day.slice(0,3)}</td>
+                <td className="border border-stone-200 print:border-stone-400 p-3 font-bold text-stone-800 uppercase tracking-widest bg-stone-50 print:bg-stone-50 text-sm">{DAY_SHORT_BN[day]}</td>
                 {periodList.map((p) => {
                   const e = at(day, p)
                   return (
@@ -2174,19 +2190,19 @@ function ClassGrid({ days, periods, entries, title }: ClassGridProps) {
                       {e ? (
                         e.isPlaceholder ? (
                           <div className="bg-[#fcf2f1] print:bg-stone-100 border border-[#f2d5d2] print:border-stone-300 rounded-sm py-1.5 px-1 mx-auto w-full max-w-[120px] shadow-sm print:shadow-none">
-                            <div className="font-bold text-[#b4483e] print:text-stone-500 text-[9px] uppercase tracking-widest leading-none mb-1">Missing</div>
-                            <div className="text-[11px] text-[#8f3a32] print:text-stone-700 font-bold">{e.subject}</div>
+                            <div className="font-bold text-[#b4483e] print:text-stone-500 text-xs uppercase tracking-widest leading-none mb-1">নেই</div>
+                            <div className="text-sm text-[#8f3a32] print:text-stone-700 font-bold">{e.subject}</div>
                           </div>
                         ) : (
                           <div className="px-1 flex flex-col items-center justify-center gap-1">
-                            <div className="font-bold text-stone-900 leading-tight print:text-black">{e.subject}</div>
-                            <div className="text-[9px] text-[#6b4c9a] print:text-stone-600 font-bold leading-tight uppercase tracking-wider">{e.teacherName}</div>
+                            <div className="font-bold text-stone-900 text-sm leading-tight print:text-black">{e.subject}</div>
+                            <div className="text-[11px] text-[#6b4c9a] print:text-stone-600 font-bold leading-tight uppercase tracking-wider">{e.teacherName}</div>
                           </div>
                         )
                       ) : (
                         <div className="flex flex-col items-center justify-center">
                           <span className="text-stone-300 print:text-stone-300 font-medium">—</span>
-                          <span className="text-[9px] text-stone-400 font-bold uppercase tracking-widest mt-1 print:hidden">Free Period</span>
+                          <span className="text-xs text-stone-400 font-bold uppercase tracking-widest mt-1 print:hidden">ফাঁকা পিরিয়ড</span>
                         </div>
                       )}
                     </td>

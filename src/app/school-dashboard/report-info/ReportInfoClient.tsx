@@ -37,6 +37,7 @@ const TEACHER_FIELDS: FieldConfig[] = [
 
 export default function ReportInfoClient({ students = [], teachers = [], classes = [] }: any) {
   const [reportType, setReportType] = useState<'student' | 'teacher'>('student')
+  const [selectedClassId, setSelectedClassId] = useState<string>('all')
 
   // Selected state for checkboxes (auto-selecting combined payment fields)
   const [selectedStudentFields, setSelectedStudentFields] = useState<string[]>(['name', 'roll', 'class', 'fatherName', 'fatherPayment'])
@@ -83,10 +84,21 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
   // Columns to display
   const activeColumns = activeFieldsConfig.filter(f => activeSelectedKeys.includes(f.key))
 
+  // Helper to get selected class name for print headers
+  const getSelectedClassName = () => {
+    if (selectedClassId === 'all') return 'All Classes'
+    return classes.find((c: any) => String(c.id) === selectedClassId)?.name || 'Unknown Class'
+  }
+
   // Data Extraction Logic with Combo Formatter
   const getMappedData = (): Record<string, string>[] => {
     if (reportType === 'student') {
-      return students.map((s: any) => {
+      // Filter students by class if a specific class is selected
+      const filteredStudents = selectedClassId === 'all' 
+        ? students 
+        : students.filter((s: any) => String(s.class_id) === selectedClassId)
+
+      return filteredStudents.map((s: any) => {
         const row: Record<string, string> = {}
         if (selectedStudentFields.includes('name')) row['Name (EN/BN)'] = s.first_name || s.studentNameEn || s.nameBangla || '-'
         if (selectedStudentFields.includes('roll')) row['Roll No'] = String(s.enrollment_id || '-')
@@ -143,7 +155,12 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
     const worksheet = XLSX.utils.json_to_sheet(data)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Report")
-    XLSX.writeFile(workbook, `${reportType}_report.xlsx`)
+    
+    const fileName = reportType === 'student' 
+      ? `student_report_${selectedClassId !== 'all' ? getSelectedClassName().replace(/\s+/g, '_') : 'all'}.xlsx` 
+      : 'teacher_report.xlsx'
+      
+    XLSX.writeFile(workbook, fileName)
   }
 
   const handlePrintPDF = () => {
@@ -162,20 +179,44 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
           <p className="text-sm font-medium text-stone-500 mt-2">Select the data points you want to export as an Excel File or PDF Document.</p>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setReportType('student')}
-            className={`px-6 py-3.5 text-xs font-bold uppercase tracking-widest rounded-sm transition-all border ${reportType === 'student' ? 'bg-white shadow-sm border-stone-200 text-[#6b4c9a]' : 'bg-transparent border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-200'}`}
-          >
-            Student Records
-          </button>
-          <button 
-            onClick={() => setReportType('teacher')}
-            className={`px-6 py-3.5 text-xs font-bold uppercase tracking-widest rounded-sm transition-all border ${reportType === 'teacher' ? 'bg-white shadow-sm border-stone-200 text-[#6b4c9a]' : 'bg-transparent border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-200'}`}
-          >
-            Teacher Roster
-          </button>
+        {/* Controls Section (Tabs + Filter) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setReportType('student')}
+              className={`px-6 py-3.5 text-xs font-bold uppercase tracking-widest rounded-sm transition-all border ${reportType === 'student' ? 'bg-white shadow-sm border-stone-200 text-[#6b4c9a]' : 'bg-transparent border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-200'}`}
+            >
+              Student Records
+            </button>
+            <button 
+              onClick={() => setReportType('teacher')}
+              className={`px-6 py-3.5 text-xs font-bold uppercase tracking-widest rounded-sm transition-all border ${reportType === 'teacher' ? 'bg-white shadow-sm border-stone-200 text-[#6b4c9a]' : 'bg-transparent border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-200'}`}
+            >
+              Teacher Roster
+            </button>
+          </div>
+
+          {/* Class Filter Dropdown (Only visible for students) */}
+          {reportType === 'student' && (
+            <div className="flex items-center gap-3">
+              <label htmlFor="classFilter" className="text-xs font-bold text-stone-500 uppercase tracking-widest">
+                Filter by Class:
+              </label>
+              <select
+                id="classFilter"
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                className="border border-stone-300 rounded-sm px-4 py-2.5 text-sm font-medium text-stone-800 bg-white focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] min-w-[160px] cursor-pointer"
+              >
+                <option value="all">All Classes</option>
+                {classes.map((c: any) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Checkbox Selector Area */}
@@ -252,7 +293,7 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
                 ))}
                 {previewData.length === 0 && (
                   <tr>
-                    <td colSpan={activeColumns.length} className="p-8 text-center text-stone-400 italic font-medium">No records found.</td>
+                    <td colSpan={activeColumns.length} className="p-8 text-center text-stone-400 italic font-medium">No records found matching criteria.</td>
                   </tr>
                 )}
               </tbody>
@@ -267,7 +308,9 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
       <div className="hidden print:block w-full text-black bg-white">
         <div className="mb-6 border-b-2 border-black pb-4 text-center">
           <h2 className="text-2xl font-black uppercase tracking-widest">
-            {reportType === 'student' ? 'Student Information Report' : 'Teacher Information Report'}
+            {reportType === 'student' 
+              ? `Student Information Report ${selectedClassId !== 'all' ? `- ${getSelectedClassName()}` : ''}` 
+              : 'Teacher Information Report'}
           </h2>
           <p className="text-sm font-bold text-gray-500 mt-1">Generated via e-Biddaloy Dashboard • {new Date().toLocaleDateString()}</p>
         </div>

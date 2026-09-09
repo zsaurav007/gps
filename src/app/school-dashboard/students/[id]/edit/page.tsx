@@ -32,14 +32,14 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
   if (studentError || !student) {
     console.error("Fetch Student Error:", studentError) // Helps debug in your terminal just in case
     return (
-      <div className="min-h-screen bg-[#FAFAFA] p-6 flex items-center justify-center font-sans">
-        <div className="bg-white p-10 rounded-sm border border-stone-200 shadow-sm text-center max-w-md w-full">
+      <div className="min-h-screen bg-stone-50 p-6 flex items-center justify-center font-sans">
+        <div className="bg-white p-10 rounded-sm border border-stone-200 shadow-sm text-center max-w-md w-full border-t-4 border-t-[#b4483e]">
           <svg className="w-12 h-12 text-stone-300 mx-auto mb-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-          <h1 className="text-xl font-normal text-stone-900 uppercase tracking-wide">Student Not Found</h1>
-          <p className="text-sm font-medium text-stone-500 mt-2 mb-8">The requested student profile could not be loaded or does not exist.</p>
+          <h1 className="text-xl font-bold text-stone-900 uppercase tracking-wide">Student Not Found</h1>
+          <p className="text-xs font-medium text-stone-500 mt-2 mb-8 uppercase tracking-wider">The requested student profile could not be loaded or does not exist.</p>
           <Link 
             href="/school-dashboard/students" 
-            className="inline-block bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm text-[11px] uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm"
+            className="inline-block bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm"
           >
             Return to Directory
           </Link>
@@ -49,33 +49,32 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] p-3 md:p-5 lg:p-6 font-sans text-stone-900">
-      <div className="max-w-4xl mx-auto space-y-5 lg:space-y-6">
+    <main className="min-h-screen bg-stone-50 p-6 md:p-8 font-sans text-stone-900">
+      <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
         
-        {/* Aesthetic Matte Header */}
-        <div className="bg-white rounded-sm border border-stone-200 p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-stone-900 to-[#6b4c9a]"></div>
-          
-          <div className="flex-1 mb-5 md:mb-0">
-            <p className="text-[11px] font-medium tracking-widest text-stone-500 uppercase mb-1">
-              Student Roster
-            </p>
-            <h1 className="text-2xl md:text-3xl font-normal tracking-wide uppercase bg-gradient-to-r from-stone-900 to-[#815ba4] bg-clip-text text-transparent break-words">
+        {/* Header Card */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 md:p-8 rounded-sm shadow-sm border border-stone-200 border-t-4 border-t-[#6b4c9a] gap-5">
+          <div>
+            <p className="text-[10px] font-bold tracking-widest text-stone-500 uppercase mb-1.5">Student Roster</p>
+            <h1 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">
               Edit Student Profile
             </h1>
+            <p className="text-sm font-medium text-stone-600 mt-2">
+              Modify demographic, academic, and guardian records for {student.first_name}.
+            </p>
           </div>
-          
-          <div className="flex items-center border-t border-stone-100 pt-4 md:border-t-0 md:pt-0 md:border-l md:pl-5 shrink-0">
+          <div className="shrink-0 pt-2 md:pt-0 border-t border-stone-100 md:border-t-0 md:border-l md:pl-6 mt-4 md:mt-0">
             <Link 
               href="/school-dashboard/students" 
-              className="text-[10px] font-medium tracking-widest uppercase text-stone-500 hover:text-[#6b4c9a] transition-colors flex items-center gap-1.5"
+              className="text-xs uppercase tracking-widest font-bold text-stone-600 hover:text-stone-900 transition-colors flex items-center justify-center gap-2 bg-stone-50 hover:bg-stone-100 px-5 py-3 rounded-sm border border-stone-200 shadow-sm"
             >
-              <span className="text-sm leading-none">&larr;</span> Cancel & Return
+              &larr; Cancel & Return
             </Link>
           </div>
         </div>
 
-        <div className="bg-white rounded-sm border border-stone-200 p-6 md:p-8 shadow-sm">
+        {/* Form Container */}
+        <div className="w-full">
           <EditStudentForm 
             schoolId={sessionData.schoolId} 
             classes={classes || []} 

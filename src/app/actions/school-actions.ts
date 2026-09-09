@@ -6,6 +6,10 @@ import { revalidatePath } from 'next/cache'
 
 export async function registerSchool(formData: FormData) {
   const name = formData.get('name') as string
+  const address = formData.get('address') as string
+  const emisNo = formData.get('emisNo') as string
+  const ipemisNo = formData.get('ipemisNo') as string
+  const establishedDate = formData.get('establishedDate') as string
 
   // Automatically generate a unique 6-character alphanumeric code with a prefix
   const randomString = Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -19,7 +23,7 @@ export async function registerSchool(formData: FormData) {
     throw new Error('Unauthorized')
   }
 
-  // Insert the new school into the database using the generated code
+  // Insert the new school into the database using the generated code and new fields
   const { error } = await supabase
     .schema('gps')
     .from('schools')
@@ -27,6 +31,10 @@ export async function registerSchool(formData: FormData) {
       name: name,
       school_code: generatedSchoolCode,
       registration_status: 'active',
+      address: address || null,
+      emis_no: emisNo || null,
+      ipemis_no: ipemisNo || null,
+      established_date: establishedDate || null,
     })
 
   if (error) {
@@ -38,6 +46,7 @@ export async function registerSchool(formData: FormData) {
   revalidatePath('/platform-dashboard')
   redirect('/platform-dashboard')
 }
+
 export async function deleteSchool(formData: FormData) {
   const schoolId = formData.get('schoolId') as string
   const actualSchoolName = formData.get('actualSchoolName') as string
@@ -85,6 +94,10 @@ export async function updateSchool(formData: FormData) {
   const schoolId = formData.get('schoolId') as string
   const name = formData.get('name') as string
   const status = formData.get('status') as string
+  const address = formData.get('address') as string
+  const emisNo = formData.get('emisNo') as string
+  const ipemisNo = formData.get('ipemisNo') as string
+  const establishedDate = formData.get('establishedDate') as string
 
   const supabase = await createClient()
 
@@ -93,7 +106,11 @@ export async function updateSchool(formData: FormData) {
     .from('schools')
     .update({ 
       name: name,
-      registration_status: status 
+      registration_status: status,
+      address: address || null,
+      emis_no: emisNo || null,
+      ipemis_no: ipemisNo || null,
+      established_date: establishedDate || null,
     })
     .eq('id', schoolId)
 

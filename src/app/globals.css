@@ -1,3 +1,6 @@
+/* 1. Import Kalpurush Font */
+@import url('https://fonts.maateen.me/kalpurush/font.css');
+
 @import "tailwindcss";
 
 :root {
@@ -8,7 +11,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  
+  /* 2. Add 'Kalpurush' right after your default English font */
+  --font-sans: var(--font-geist-sans), 'Kalpurush', sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -22,5 +27,6 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* 3. Apply the updated font stack globally */
+  font-family: var(--font-sans); 
 }

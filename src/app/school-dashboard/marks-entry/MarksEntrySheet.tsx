@@ -4,6 +4,26 @@ import { useState, useMemo } from 'react'
 import Dropdown from '@/components/ui/dropdown'
 import { getMarksSheetData, saveStudentMarks, deleteStudentMark } from '@/app/actions/exam-actions'
 
+// --- Number Conversion Helpers ---
+const toBengaliNumber = (num: number | string | null | undefined) => {
+  if (num === null || num === undefined || num === '') return ''
+  const englishToBengali: Record<string, string> = {
+    '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪', 
+    '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯'
+  }
+  return String(num).replace(/[0-9]/g, char => englishToBengali[char])
+}
+
+const toEnglishNumber = (str: string) => {
+  if (!str) return ''
+  const bengaliToEnglish: Record<string, string> = {
+    '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', 
+    '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+  }
+  // Convert any Bengali digits to English, keep existing English digits or decimal points intact
+  return String(str).replace(/[০-৯]/g, char => bengaliToEnglish[char])
+}
+
 export default function MarksEntrySheet({ exams, classes, subjects, examConfigs }: any) {
   // --- 1. Selection State ---
   const [selectedClassId, setSelectedClassId] = useState<string>('')
@@ -71,9 +91,10 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
 
   // --- Input Handlers (Single) ---
   const handleSingleBreakdown = (bdName: string, value: string, max: number) => {
-    if (parseFloat(value) > max) return 
+    const engValue = toEnglishNumber(value)
+    if (parseFloat(engValue) > max) return 
     setEntryBreakdowns(prev => {
-      const updated = { ...prev, [bdName]: value }
+      const updated = { ...prev, [bdName]: engValue }
       let newTotal = 0
       Object.values(updated).forEach(v => newTotal += (parseFloat(v as string) || 0))
       setEntryTotal(newTotal.toString())
@@ -83,16 +104,17 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
 
   // --- Input Handlers (Bulk) ---
   const handleBulkChange = (studentId: string, bdName: string | null, value: string, max: number) => {
-    if (parseFloat(value) > max) return
+    const engValue = toEnglishNumber(value)
+    if (parseFloat(engValue) > max) return
     setBulkState(prev => {
       const current = prev[studentId] || { breakdowns: {}, total: '' }
       if (bdName) {
-        const newBreakdowns = { ...current.breakdowns, [bdName]: value }
+        const newBreakdowns = { ...current.breakdowns, [bdName]: engValue }
         let newTotal = 0
         Object.values(newBreakdowns).forEach(v => newTotal += (parseFloat(v as string) || 0))
         return { ...prev, [studentId]: { breakdowns: newBreakdowns, total: newTotal.toString() } }
       } else {
-        return { ...prev, [studentId]: { ...current, total: value } } // Flat total
+        return { ...prev, [studentId]: { ...current, total: engValue } } // Flat total
       }
     })
   }
@@ -104,7 +126,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
       // Validation & Mapping
       const payload = payloadRaw.map(p => {
         const totalVal = parseFloat(p.total) || 0
-        if (totalVal > sheetData!.config.total_max_marks) throw new Error(`Total exceeds maximum for a student.`)
+        if (totalVal > sheetData!.config.total_max_marks) throw new Error(`নম্বর সর্বোচ্চ সীমার বেশি হতে পারবে না। / Total exceeds maximum for a student.`)
         return {
           exam_id: selectedExamId,
           student_id: p.studentId,
@@ -114,7 +136,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
         }
       })
 
-      if (payload.length === 0) return alert("No valid marks entered to save.")
+      if (payload.length === 0) return alert("সংরক্ষণ করার মতো কোনো নম্বর নেই। / No valid marks entered to save.")
 
       await saveStudentMarks(payload)
 
@@ -151,7 +173,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
       .filter(id => bulkState[id] && (bulkState[id].total !== '' || Object.keys(bulkState[id].breakdowns).length > 0))
       .map(id => ({ studentId: id, breakdowns: bulkState[id].breakdowns, total: bulkState[id].total }))
 
-    if (payloadRaw.length === 0) return alert("Please enter marks for at least one student before saving.")
+    if (payloadRaw.length === 0) return alert("সংরক্ষণ করার আগে অন্তত একজন শিক্ষার্থীর নম্বর দিন। / Please enter marks for at least one student before saving.")
 
     const success = await processSave(payloadRaw)
     if (success) {
@@ -160,7 +182,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
         payloadRaw.forEach(p => delete next[p.studentId])
         return next
       })
-      alert(`Successfully saved ${payloadRaw.length} record(s).`)
+      alert(`সফলভাবে ${toBengaliNumber(payloadRaw.length)} টি রেকর্ড সংরক্ষণ করা হয়েছে। / Successfully saved ${payloadRaw.length} record(s).`)
     }
   }
 
@@ -174,7 +196,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
   }
 
   const handleDelete = async (studentId: string) => {
-    if (!window.confirm("Are you sure you want to delete this mark?")) return
+    if (!window.confirm("আপনি কি নিশ্চিত যে এই নম্বরটি মুছে ফেলতে চান? / Are you sure you want to delete this mark?")) return
     try {
       await deleteStudentMark(selectedExamId, selectedSubjectId, studentId)
       setSheetData(prev => prev ? { ...prev, marks: prev.marks.filter(m => m.student_id !== studentId) } : null)
@@ -196,7 +218,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
     : allPending
 
   const studentOptions = useMemo(() => dropdownStudents.map((s: any) => ({
-    label: `${s.enrollment_id} - ${s.first_name} ${s.last_name}`,
+    label: `${toBengaliNumber(s.enrollment_id)} - ${s.first_name} ${s.last_name}`,
     value: s.id
   })), [dropdownStudents])
 
@@ -206,33 +228,33 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
       {/* 1. SELECTION CONTROLS */}
       <div className="bg-white rounded-sm shadow-sm border border-stone-200 p-5 md:p-6 lg:flex lg:items-end lg:gap-4 grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-50">
         <div className="lg:flex-1">
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">1. Class</label>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">১. শ্রেণি / 1. Class</label>
           <Dropdown 
             options={classOptions}
             value={selectedClassId}
             onChange={(val) => { setSelectedClassId(String(val)); setSelectedExamId(''); setSelectedSubjectId(''); setSheetData(null) }}
-            placeholder="-- Choose Class --"
+            placeholder="-- শ্রেণি নির্বাচন করুন --"
             hasSearch={true}
           />
         </div>
         <div className="lg:flex-1">
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">2. Exam</label>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">২. পরীক্ষা / 2. Exam</label>
           <Dropdown 
             options={examOptions}
             value={selectedExamId}
             onChange={(val) => { setSelectedExamId(String(val)); setSelectedSubjectId(''); setSheetData(null) }}
             disabled={!selectedClassId}
-            placeholder="-- Choose Exam --"
+            placeholder="-- পরীক্ষা নির্বাচন করুন --"
           />
         </div>
         <div className="lg:flex-1 sm:col-span-2 lg:col-span-1">
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">3. Subject</label>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">৩. বিষয় / 3. Subject</label>
           <Dropdown 
             options={subjectOptions}
             value={selectedSubjectId}
             onChange={(val) => { setSelectedSubjectId(String(val)); setSheetData(null) }}
             disabled={!selectedExamId}
-            placeholder="-- Choose Subject --"
+            placeholder="-- বিষয় নির্বাচন করুন --"
             hasSearch={true}
           />
         </div>
@@ -242,7 +264,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
             disabled={!selectedSubjectId || isLoading} 
             className="w-full bg-stone-900 text-white px-6 py-2.5 rounded-sm hover:bg-stone-800 disabled:opacity-50 text-[11px] font-bold uppercase tracking-widest transition-colors shadow-sm h-[42px]"
           >
-            {isLoading ? 'Loading...' : 'Load Ledger'}
+            {isLoading ? 'Loading...' : 'লেজার লোড করুন / Load Ledger'}
           </button>
         </div>
       </div>
@@ -255,10 +277,10 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
             
             <div className="flex flex-wrap gap-3 items-center">
               <span className="inline-flex px-3 py-1.5 bg-white border border-stone-200 rounded-sm text-[10px] uppercase tracking-widest font-bold text-stone-500 shadow-sm">
-                Max Score: <span className="text-stone-900 ml-1.5">{sheetData.config.total_max_marks}</span>
+                পূর্ণমান / Max Score: <span className="text-stone-900 ml-1.5">{toBengaliNumber(sheetData.config.total_max_marks)}</span>
               </span>
               <span className="inline-flex px-3 py-1.5 bg-white border border-stone-200 rounded-sm text-[10px] uppercase tracking-widest font-bold text-stone-500 shadow-sm">
-                Pass: <span className="text-[#b4483e] ml-1.5">{sheetData.config.total_pass_mark}</span>
+                পাস / Pass: <span className="text-[#b4483e] ml-1.5">{toBengaliNumber(sheetData.config.total_pass_mark)}</span>
               </span>
               {hasBreakdowns && (
                 <span className="inline-flex px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-sm text-[10px] uppercase tracking-widest font-bold text-stone-700 shadow-sm">
@@ -272,13 +294,13 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                 onClick={() => setEntryMode('single')} 
                 className={`flex-1 md:flex-none px-5 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${entryMode === 'single' ? 'bg-white shadow-sm text-[#6b4c9a]' : 'text-stone-500 hover:text-stone-700'}`}
               >
-                Single Entry
+                একক এন্ট্রি / Single Entry
               </button>
               <button 
                 onClick={() => setEntryMode('bulk')} 
                 className={`flex-1 md:flex-none px-5 py-2 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${entryMode === 'bulk' ? 'bg-white shadow-sm text-[#6b4c9a]' : 'text-stone-500 hover:text-stone-700'}`}
               >
-                Grid / Bulk
+                গ্রিড / Grid Bulk
               </button>
             </div>
           </div>
@@ -294,22 +316,22 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                 {/* Single Form */}
                 <div className="lg:col-span-1 bg-stone-50 p-5 md:p-6 rounded-sm border border-stone-200 sticky top-4">
                   <h2 className="text-sm font-bold text-stone-900 uppercase tracking-widest mb-5">
-                    {isEditingSingle ? 'Edit Student Mark' : 'Enter New Mark'}
+                    {isEditingSingle ? 'নম্বর সম্পাদনা করুন / Edit Student Mark' : 'নতুন নম্বর যোগ করুন / Enter New Mark'}
                   </h2>
                   
                   {dropdownStudents.length === 0 && !isEditingSingle ? (
                     <div className="text-center p-6 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-widest rounded-sm border border-emerald-200 shadow-sm">
-                      All Students Graded
+                      সব শিক্ষার্থীর নম্বর দেওয়া হয়েছে / All Students Graded
                     </div>
                   ) : (
                     <div className="space-y-6">
                       <div className="relative z-40">
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">Student</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-600 mb-2">শিক্ষার্থী / Student</label>
                         <Dropdown 
                           options={studentOptions}
                           value={entryStudentId}
                           onChange={(val) => { setEntryStudentId(String(val)); setEntryBreakdowns({}); setEntryTotal(''); setIsEditingSingle(false) }}
-                          placeholder="-- Search Student --"
+                          placeholder="-- শিক্ষার্থী খুঁজুন --"
                           hasSearch={true}
                         />
                       </div>
@@ -319,22 +341,25 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                           {hasBreakdowns ? breakdowns.map((b: any, idx: number) => (
                             <div key={idx} className="flex justify-between items-center bg-white p-3 border border-stone-200 rounded-sm shadow-sm">
                               <label className="text-xs font-bold text-stone-800 tracking-wide uppercase">
-                                {b.name} <span className="text-[10px] text-stone-400 block mt-0.5">Max: {b.max}</span>
+                                {b.name} <span className="text-[10px] text-stone-400 block mt-0.5">সর্বোচ্চ: {toBengaliNumber(b.max)}</span>
                               </label>
                               <input 
-                                type="number" step="0.5" min="0" max={b.max} 
-                                value={entryBreakdowns[b.name] || ''} 
+                                type="text" inputMode="numeric"
+                                value={toBengaliNumber(entryBreakdowns[b.name] || '')} 
                                 onChange={e => handleSingleBreakdown(b.name, e.target.value, Number(b.max))} 
                                 className="w-20 p-2.5 bg-stone-50 border border-stone-300 rounded-sm text-center font-bold text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all" 
                               />
                             </div>
                           )) : (
                             <div className="flex justify-between items-center bg-white p-3 border border-stone-200 rounded-sm shadow-sm">
-                              <label className="text-xs font-bold text-stone-800 tracking-wide uppercase">Total Score</label>
+                              <label className="text-xs font-bold text-stone-800 tracking-wide uppercase">মোট নম্বর / Total Score</label>
                               <input 
-                                type="number" step="0.5" min="0" max={sheetData.config.total_max_marks} 
-                                value={entryTotal} 
-                                onChange={e => {if(parseFloat(e.target.value) <= sheetData.config.total_max_marks) setEntryTotal(e.target.value)}} 
+                                type="text" inputMode="numeric"
+                                value={toBengaliNumber(entryTotal)} 
+                                onChange={e => {
+                                  const engVal = toEnglishNumber(e.target.value);
+                                  if(!engVal || parseFloat(engVal) <= sheetData.config.total_max_marks) setEntryTotal(engVal)
+                                }} 
                                 className="w-24 p-2.5 bg-stone-50 border border-stone-300 rounded-sm text-center font-bold text-stone-900 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all" 
                               />
                             </div>
@@ -345,7 +370,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                             disabled={isSaving} 
                             className="w-full mt-4 bg-emerald-700 text-white py-3.5 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-800 disabled:opacity-50 transition-colors shadow-sm"
                           >
-                            {isSaving ? 'Saving...' : isEditingSingle ? 'Update Mark' : 'Save & Next'}
+                            {isSaving ? 'Saving...' : isEditingSingle ? 'আপডেট করুন / Update Mark' : 'সংরক্ষণ করুন / Save & Next'}
                           </button>
                         </div>
                       )}
@@ -356,10 +381,10 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                 {/* Single Ledger List */}
                 <div className="lg:col-span-2 space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-stone-50 p-4 border border-stone-200 rounded-sm">
-                    <h3 className="text-xs font-bold text-stone-900 uppercase tracking-widest">Saved Ledger ({allSaved.length})</h3>
+                    <h3 className="text-xs font-bold text-stone-900 uppercase tracking-widest">সংরক্ষিত লেজার / Saved Ledger ({toBengaliNumber(allSaved.length)})</h3>
                     <input 
                       type="text" 
-                      placeholder="Search saved..." 
+                      placeholder="খুঁজুন / Search saved..." 
                       value={searchSaved} 
                       onChange={e => setSearchSaved(e.target.value)} 
                       className="w-full sm:w-64 p-2.5 bg-white border border-stone-300 rounded-sm text-sm font-medium focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
@@ -370,10 +395,10 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                     <table className="w-full text-left text-sm min-w-max">
                       <thead className="bg-[#fbf9fc] border-b border-[#dad3e3] text-stone-600">
                         <tr>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest">Roll</th>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest">Student</th>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-center">Score</th>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-right">Actions</th>
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest">রোল / Roll</th>
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest">শিক্ষার্থীর নাম / Student Name</th>
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-center">নম্বর / Score</th>
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-right">অ্যাকশন / Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100">
@@ -381,27 +406,27 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                           const mark = sheetData.marks.find((m: any) => m.student_id === student.id)
                           return (
                             <tr key={student.id} className="hover:bg-stone-50 transition-colors">
-                              <td className="p-4 font-bold text-stone-900">{student.enrollment_id}</td>
+                              <td className="p-4 font-bold text-stone-900">{toBengaliNumber(student.enrollment_id)}</td>
                               <td className="p-4 font-medium text-stone-700">{student.first_name} {student.last_name}</td>
-                              <td className="p-4 text-center font-black text-[#6b4c9a]">{mark?.total_obtained}</td>
+                              <td className="p-4 text-center font-black text-[#6b4c9a]">{toBengaliNumber(mark?.total_obtained)}</td>
                               <td className="p-4 text-right space-x-3">
                                 <button 
                                   onClick={() => { setEntryStudentId(student.id); setEntryBreakdowns(mark?.breakdown_marks||{}); setEntryTotal(mark?.total_obtained.toString()); setIsEditingSingle(true); window.scrollTo({top:0, behavior:'smooth'}) }} 
                                   className="text-[#6b4c9a] hover:text-[#4c2f74] font-bold text-[10px] uppercase tracking-widest transition-colors"
                                 >
-                                  Edit
+                                  সম্পাদনা / Edit
                                 </button>
                                 <button 
                                   onClick={() => handleDelete(student.id)} 
                                   className="text-[#b4483e] hover:text-[#85322a] font-bold text-[10px] uppercase tracking-widest transition-colors"
                                 >
-                                  Delete
+                                  মুছুন / Delete
                                 </button>
                               </td>
                             </tr>
                           )
                         })}
-                        {filteredSaved.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-xs font-medium text-stone-500 italic">No saved marks found.</td></tr>}
+                        {filteredSaved.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-xs font-medium text-stone-500 italic">কোনো সংরক্ষিত নম্বর পাওয়া যায়নি। / No saved marks found.</td></tr>}
                       </tbody>
                     </table>
                   </div>
@@ -419,13 +444,13 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-sm border border-stone-200 shadow-sm border-t-4 border-t-stone-800">
                     <div>
-                      <h3 className="font-bold text-stone-900 text-sm uppercase tracking-widest mb-1">Pending Grid ({allPending.length})</h3>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Enter marks directly. Only rows with data are saved.</p>
+                      <h3 className="font-bold text-stone-900 text-sm uppercase tracking-widest mb-1">অপেক্ষমাণ তালিকা / Pending Grid ({toBengaliNumber(allPending.length)})</h3>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">সরাসরি নম্বর দিন। শুধু পূরণ করা তথ্য সংরক্ষণ করা হবে।</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                       <input 
                         type="text" 
-                        placeholder="Search pending..." 
+                        placeholder="খুঁজুন / Search pending..." 
                         value={searchPending} 
                         onChange={e => setSearchPending(e.target.value)} 
                         className="w-full sm:w-64 p-2.5 bg-stone-50 border border-stone-300 rounded-sm text-sm font-medium focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
@@ -435,7 +460,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                         disabled={isSaving || filteredPending.length === 0} 
                         className="bg-stone-900 text-white px-6 py-2.5 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-stone-800 disabled:opacity-50 transition-colors shadow-sm whitespace-nowrap"
                       >
-                        {isSaving ? 'Saving...' : 'Save Entered Marks'}
+                        {isSaving ? 'Saving...' : 'নম্বর সংরক্ষণ করুন / Save'}
                       </button>
                     </div>
                   </div>
@@ -444,23 +469,23 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                     <table className="w-full text-left border-collapse min-w-max">
                       <thead className="bg-stone-100 border-b border-stone-200">
                         <tr>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 w-24 sticky left-0 bg-stone-100 border-r border-stone-200">Roll</th>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 sticky left-24 bg-stone-100 border-r border-stone-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Student Name</th>
-                          {hasBreakdowns ? breakdowns.map((b:any, i:number) => <th key={i} className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-36">{b.name} (Max {b.max})</th>) 
-                                         : <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-40">Total Score (Max {sheetData.config.total_max_marks})</th>}
-                          {hasBreakdowns && <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#6b4c9a] text-center w-32 bg-[#fbf9fc]">Auto Total</th>}
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 w-24 sticky left-0 bg-stone-100 border-r border-stone-200">রোল / Roll</th>
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 sticky left-24 bg-stone-100 border-r border-stone-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">শিক্ষার্থীর নাম / Name</th>
+                          {hasBreakdowns ? breakdowns.map((b:any, i:number) => <th key={i} className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-36">{b.name} (Max {toBengaliNumber(b.max)})</th>) 
+                                         : <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-40">মোট নম্বর / Total Score (Max {toBengaliNumber(sheetData.config.total_max_marks)})</th>}
+                          {hasBreakdowns && <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#6b4c9a] text-center w-32 bg-[#fbf9fc]">মোট / Auto Total</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100">
                         {filteredPending.map((student: any) => (
                           <tr key={student.id} className="hover:bg-stone-50/50 transition-colors">
-                            <td className="p-4 font-bold text-stone-900 sticky left-0 bg-white border-r border-stone-100">{student.enrollment_id}</td>
+                            <td className="p-4 font-bold text-stone-900 sticky left-0 bg-white border-r border-stone-100">{toBengaliNumber(student.enrollment_id)}</td>
                             <td className="p-4 font-medium text-stone-700 sticky left-24 bg-white border-r border-stone-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)]">{student.first_name} {student.last_name}</td>
                             {hasBreakdowns ? breakdowns.map((b:any, i:number) => (
                               <td key={i} className="p-2 text-center border-r border-stone-100 bg-stone-50/30">
                                 <input 
-                                  type="number" step="0.5" min="0" max={b.max} 
-                                  value={bulkState[student.id]?.breakdowns[b.name] || ''} 
+                                  type="text" inputMode="numeric"
+                                  value={toBengaliNumber(bulkState[student.id]?.breakdowns[b.name] || '')} 
                                   onChange={e => handleBulkChange(student.id, b.name, e.target.value, Number(b.max))} 
                                   className="w-full p-2.5 bg-white border border-stone-300 rounded-sm text-center text-sm font-bold focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
                                 />
@@ -468,14 +493,14 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                             )) : (
                               <td className="p-2 text-center border-r border-stone-100 bg-stone-50">
                                 <input 
-                                  type="number" step="0.5" min="0" max={sheetData.config.total_max_marks} 
-                                  value={bulkState[student.id]?.total || ''} 
+                                  type="text" inputMode="numeric"
+                                  value={toBengaliNumber(bulkState[student.id]?.total || '')} 
                                   onChange={e => handleBulkChange(student.id, null, e.target.value, sheetData.config.total_max_marks)} 
                                   className="w-full p-2.5 bg-white border border-stone-300 rounded-sm text-center text-sm font-bold focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
                                 />
                               </td>
                             )}
-                            {hasBreakdowns && <td className="p-4 text-center font-black text-[#6b4c9a] border-l border-[#dad3e3] bg-[#fbf9fc]">{bulkState[student.id]?.total || '-'}</td>}
+                            {hasBreakdowns && <td className="p-4 text-center font-black text-[#6b4c9a] border-l border-[#dad3e3] bg-[#fbf9fc]">{toBengaliNumber(bulkState[student.id]?.total) || '-'}</td>}
                           </tr>
                         ))}
                         {filteredPending.length === 0 && <tr><td colSpan={10} className="p-10 text-center text-xs font-medium text-stone-500 italic">No pending students match search.</td></tr>}
@@ -488,13 +513,13 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                 <div className="space-y-4 pt-8 border-t-2 border-stone-100">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-sm border border-stone-200 shadow-sm border-t-4 border-t-stone-300">
                     <div>
-                      <h3 className="font-bold text-stone-900 text-sm uppercase tracking-widest mb-1">Saved Grid ({allSaved.length})</h3>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Review marks or enable bulk edit mode to modify.</p>
+                      <h3 className="font-bold text-stone-900 text-sm uppercase tracking-widest mb-1">সংরক্ষিত তালিকা / Saved Grid ({toBengaliNumber(allSaved.length)})</h3>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">নম্বরগুলো দেখুন অথবা একসাথে সম্পাদনা করুন।</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                       <input 
                         type="text" 
-                        placeholder="Search saved..." 
+                        placeholder="খুঁজুন / Search saved..." 
                         value={searchSaved} 
                         onChange={e => setSearchSaved(e.target.value)} 
                         className="w-full sm:w-64 p-2.5 bg-stone-50 border border-stone-300 rounded-sm text-sm font-medium focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
@@ -505,7 +530,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                           disabled={filteredSaved.length === 0} 
                           className="bg-white text-stone-800 border border-stone-300 px-6 py-2.5 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-stone-100 disabled:opacity-50 transition-colors shadow-sm whitespace-nowrap"
                         >
-                          Enable Bulk Edit
+                          একসাথে সম্পাদনা / Enable Bulk Edit
                         </button>
                       ) : (
                         <div className="flex gap-2">
@@ -513,14 +538,14 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                             onClick={() => { setIsBulkEditing(false); setBulkState({}) }} 
                             className="bg-white text-stone-600 border border-stone-300 px-4 py-2.5 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-stone-50 transition-colors shadow-sm"
                           >
-                            Cancel
+                            বাতিল / Cancel
                           </button>
                           <button 
                             onClick={async () => { await handleSaveBulk(filteredSaved.map((s: any) => s.id)); setIsBulkEditing(false); }} 
                             disabled={isSaving} 
                             className="bg-[#6b4c9a] text-white px-6 py-2.5 rounded-sm font-bold text-[10px] uppercase tracking-widest hover:bg-[#5a3f82] disabled:opacity-50 transition-colors shadow-sm whitespace-nowrap"
                           >
-                            {isSaving ? 'Updating...' : 'Save All Changes'}
+                            {isSaving ? 'Updating...' : 'সব পরিবর্তন সংরক্ষণ করুন / Save All Changes'}
                           </button>
                         </div>
                       )}
@@ -531,10 +556,10 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                     <table className="w-full text-left border-collapse min-w-max">
                       <thead className="bg-stone-100 border-b border-stone-200">
                         <tr>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 w-24 sticky left-0 bg-stone-100 border-r border-stone-200">Roll</th>
-                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 sticky left-24 bg-stone-100 border-r border-stone-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Student Name</th>
-                          {hasBreakdowns ? breakdowns.map((b:any, i:number) => <th key={i} className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-36">{b.name} (Max {b.max})</th>) 
-                                         : <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-40">Total Score</th>}
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 w-24 sticky left-0 bg-stone-100 border-r border-stone-200">রোল / Roll</th>
+                          <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 sticky left-24 bg-stone-100 border-r border-stone-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">শিক্ষার্থীর নাম / Name</th>
+                          {hasBreakdowns ? breakdowns.map((b:any, i:number) => <th key={i} className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-36">{b.name} (Max {toBengaliNumber(b.max)})</th>) 
+                                         : <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-stone-500 text-center w-40">মোট নম্বর / Total Score</th>}
                           {hasBreakdowns && <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#b4483e] text-center w-32 bg-[#fcf8f8]">Final Total</th>}
                         </tr>
                       </thead>
@@ -543,7 +568,7 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                           const mark = sheetData.marks.find((m: any) => m.student_id === student.id)
                           return (
                             <tr key={student.id} className={`hover:bg-stone-50 transition-colors ${isBulkEditing ? 'bg-[#fbf9fc]/50' : 'bg-white'}`}>
-                              <td className="p-4 font-bold text-stone-900 sticky left-0 border-r border-stone-100 bg-inherit">{student.enrollment_id}</td>
+                              <td className="p-4 font-bold text-stone-900 sticky left-0 border-r border-stone-100 bg-inherit">{toBengaliNumber(student.enrollment_id)}</td>
                               <td className="p-4 font-medium text-stone-700 sticky left-24 border-r border-stone-100 bg-inherit shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)]">{student.first_name} {student.last_name}</td>
                               
                               {/* Display Inputs OR Text based on Edit Mode */}
@@ -551,33 +576,33 @@ export default function MarksEntrySheet({ exams, classes, subjects, examConfigs 
                                 <td key={i} className="p-2 text-center border-r border-stone-100">
                                   {isBulkEditing ? (
                                     <input 
-                                      type="number" step="0.5" min="0" max={b.max} 
-                                      value={bulkState[student.id]?.breakdowns[b.name] ?? ''} 
+                                      type="text" inputMode="numeric"
+                                      value={toBengaliNumber(bulkState[student.id]?.breakdowns[b.name] ?? '')} 
                                       onChange={e => handleBulkChange(student.id, b.name, e.target.value, Number(b.max))} 
                                       className="w-full p-2.5 bg-white border border-[#dad3e3] rounded-sm text-center text-sm font-bold focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
                                     />
                                   ) : (
-                                    <span className="font-bold text-stone-800">{mark?.breakdown_marks?.[b.name] || 0}</span>
+                                    <span className="font-bold text-stone-800">{toBengaliNumber(mark?.breakdown_marks?.[b.name] || 0)}</span>
                                   )}
                                 </td>
                               )) : (
                                 <td className="p-2 text-center border-r border-stone-100 bg-stone-50/50">
                                   {isBulkEditing ? (
                                     <input 
-                                      type="number" step="0.5" min="0" max={sheetData.config.total_max_marks} 
-                                      value={bulkState[student.id]?.total ?? ''} 
+                                      type="text" inputMode="numeric" 
+                                      value={toBengaliNumber(bulkState[student.id]?.total ?? '')} 
                                       onChange={e => handleBulkChange(student.id, null, e.target.value, sheetData.config.total_max_marks)} 
                                       className="w-full p-2.5 bg-white border border-[#dad3e3] rounded-sm font-bold text-center text-sm focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm" 
                                     />
                                   ) : (
-                                    <span className="font-black text-stone-900">{mark?.total_obtained}</span>
+                                    <span className="font-black text-stone-900">{toBengaliNumber(mark?.total_obtained)}</span>
                                   )}
                                 </td>
                               )}
                               
                               {hasBreakdowns && (
                                 <td className="p-4 text-center font-black text-[#b4483e] border-l border-stone-200 bg-[#fcf8f8]">
-                                  {isBulkEditing ? (bulkState[student.id]?.total || '0') : mark?.total_obtained}
+                                  {isBulkEditing ? toBengaliNumber(bulkState[student.id]?.total || '0') : toBengaliNumber(mark?.total_obtained)}
                                 </td>
                               )}
                             </tr>

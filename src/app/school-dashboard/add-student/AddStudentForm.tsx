@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import PhotoEditor from '@/components/PhotoEditor'
+import Dropdown from '@/components/ui/dropdown'
 import { addStudent, addBulkStudents, validateRollNumbers } from '@/app/actions/student-actions'
 import { getCloudinaryAuth } from '@/app/actions/cloudinary-actions'
 import * as XLSX from 'xlsx'
@@ -48,6 +49,26 @@ const convertUrlToBase64 = async (url: string): Promise<string> => {
   })
 }
 
+// --- UI Components for Bilingual Labels ---
+const BiLabel = ({ bn, en, required }: { bn: string, en: string, required?: boolean }) => (
+  <label className="block mb-2 flex items-center flex-wrap gap-y-1">
+    <span className="text-lg font-bold text-stone-900 leading-none">{bn}</span>
+    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-2 leading-none">/ {en}</span>
+    {required && <span className="text-[#b4483e] ml-1.5 font-black">*</span>}
+  </label>
+)
+
+const SectionHeader = ({ bn, en }: { bn: string, en: string }) => (
+  <div className="border-b border-stone-200 pb-3 mb-6">
+    <h3 className="text-xl font-bold text-[#6b4c9a] flex items-baseline flex-wrap gap-2">
+      {bn} <span className="text-xs font-bold uppercase tracking-widest text-stone-400">/ {en}</span>
+    </h3>
+  </div>
+)
+
+// Standard Input Styling
+const inputClass = "w-full p-3.5 bg-white border border-stone-300 rounded-sm text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a] transition-all shadow-sm"
+
 interface ClassData { id: string; name: string }
 
 export default function AddStudentForm({ schoolId, classes }: { schoolId: string, classes: ClassData[] }) {
@@ -57,7 +78,15 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
   const [entryMode, setEntryMode] = useState<'single' | 'bulk'>('single')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // --- Single Entry State ---
+  // --- Single Entry Custom Dropdown States ---
+  const [classId, setClassId] = useState<string | number>('')
+  const [gender, setGender] = useState<string | number>('')
+  const [bloodGroup, setBloodGroup] = useState<string | number>('')
+  const [fatherBanking, setFatherBanking] = useState<string | number>('')
+  const [motherBanking, setMotherBanking] = useState<string | number>('')
+  const [guardianBanking, setGuardianBanking] = useState<string | number>('')
+
+  // --- Photo State ---
   const [editorImage, setEditorImage] = useState<string | null>(null)
   const [finalPhotoBase64, setFinalPhotoBase64] = useState<string>('')
   const [previewUrl, setPreviewUrl] = useState<string>('')
@@ -65,8 +94,23 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
 
   // --- Bulk Entry State ---
   const [parsedBulkData, setParsedBulkData] = useState<any[]>([])
-  const [selectedBulkClassId, setSelectedBulkClassId] = useState('')
+  const [selectedBulkClassId, setSelectedBulkClassId] = useState<string | number>('')
   const bulkFileInputRef = useRef<HTMLInputElement>(null)
+
+  // --- Dropdown Options ---
+  const classOptions = classes.map(c => ({ label: c.name, value: c.id }))
+  const genderOptions = [
+    { label: 'Male', value: 'Male' }, { label: 'Female', value: 'Female' }, { label: 'Other', value: 'Other' },
+  ]
+  const bloodGroupOptions = [
+    { label: 'A Positive (A+)', value: 'A+' }, { label: 'A Negative (A-)', value: 'A-' },
+    { label: 'B Positive (B+)', value: 'B+' }, { label: 'B Negative (B-)', value: 'B-' },
+    { label: 'AB Positive (AB+)', value: 'AB+' }, { label: 'AB Negative (AB-)', value: 'AB-' },
+    { label: 'O Positive (O+)', value: 'O+' }, { label: 'O Negative (O-)', value: 'O-' },
+  ]
+  const bankingOptions = [
+    { label: 'বিকাশ (bKash)', value: 'bKash' }, { label: 'নগদ (Nagad)', value: 'Nagad' }, { label: 'None', value: '' }
+  ]
 
   // --- Single Entry Handlers ---
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,42 +139,80 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
       const worksheet = workbook.Sheets[firstSheetName]
       const rawJson = XLSX.utils.sheet_to_json(worksheet)
 
-      // Smart Parser & Formatter
       const normalizedData = rawJson.map((row: any) => {
         const newRow: any = { error: null }
         Object.keys(row).forEach(key => {
           const cleanKey = key.toLowerCase().replace(/[^a-z0-9]/g, '')
           const rawValue = row[key]
+          if (rawValue === undefined || rawValue === null) return
+          const valStr = rawValue.toString().trim()
+
+          // Basic
+          if (['roll', 'rollno', 'enrollmentid'].includes(cleanKey)) newRow.enrollmentId = valStr
+          else if (['nameen', 'studentnameen', 'nameenglish', 'name', 'studentname'].includes(cleanKey)) newRow.studentNameEn = toTitleCase(valStr)
+          else if (['namebn', 'studentnamebn', 'namebangla'].includes(cleanKey)) newRow.nameBangla = valStr
+          else if (cleanKey === 'admissionyear') newRow.admissionYear = valStr
+          else if (cleanKey === 'previousroll') newRow.previousRoll = valStr
+          else if (cleanKey === 'birthregno') newRow.birthRegNo = valStr
+          else if (['dob', 'dateofbirth'].includes(cleanKey)) newRow.dateOfBirth = parseExcelDate(rawValue)
+          else if (['gender', 'sex'].includes(cleanKey)) newRow.gender = toTitleCase(valStr)
+          else if (['bloodgroup', 'bg'].includes(cleanKey)) newRow.bloodGroup = valStr.toUpperCase()
           
-          if (cleanKey.includes('guardian') || cleanKey.includes('parent') || cleanKey.includes('father') || cleanKey.includes('mother')) {
-            if (cleanKey.includes('phone') || cleanKey.includes('mobile')) newRow.guardianPhone = rawValue.toString().trim()
-            else newRow.guardianName = toTitleCase(rawValue)
-          }
-          else if (cleanKey.includes('first') || cleanKey === 'name' || cleanKey === 'studentname') {
-            newRow.firstName = toTitleCase(rawValue)
-          }
-          else if (cleanKey.includes('last')) {
-            newRow.lastName = toTitleCase(rawValue)
-          }
-          else if (cleanKey.includes('roll') || cleanKey.includes('enrollment') || cleanKey === 'id') {
-            newRow.enrollmentId = rawValue.toString().trim()
-          }
-          else if (cleanKey.includes('dob') || cleanKey.includes('birth')) {
-            newRow.dateOfBirth = parseExcelDate(rawValue) 
-          }
-          else if (cleanKey.includes('gender') || cleanKey.includes('sex')) {
-            newRow.gender = toTitleCase(rawValue)
-          }
-          // NEW: Support for Blood Group scanning in Excel files
-          else if (cleanKey.includes('blood') || cleanKey.includes('group') || cleanKey === 'bg') {
-            newRow.bloodGroup = rawValue.toString().trim().toUpperCase()
-          }
+          // Address
+          else if (cleanKey === 'village') newRow.village = valStr
+          else if (cleanKey === 'postoffice') newRow.postOffice = valStr
+          else if (cleanKey === 'postcode') newRow.postCode = valStr
+          else if (cleanKey === 'upazila') newRow.upazila = valStr
+
+          // Father
+          else if (cleanKey === 'fathernameen') newRow.fatherNameEn = toTitleCase(valStr)
+          else if (cleanKey === 'fathernamebn') newRow.fatherNameBn = valStr
+          else if (cleanKey === 'fatheredu') newRow.fatherEdu = valStr
+          else if (cleanKey === 'fatherfathername') newRow.fatherFatherName = valStr
+          else if (cleanKey === 'fathermothername') newRow.fatherMotherName = valStr
+          else if (cleanKey === 'fathernid') newRow.fatherNid = valStr
+          else if (cleanKey === 'fatherdob') newRow.fatherDob = parseExcelDate(rawValue)
+          else if (cleanKey === 'fathervillage') newRow.fatherVillage = valStr
+          else if (cleanKey === 'fatherpostoffice') newRow.fatherPostOffice = valStr
+          else if (cleanKey === 'fatherpostcode') newRow.fatherPostCode = valStr
+          else if (cleanKey === 'fatherupazila') newRow.fatherUpazila = valStr
+          else if (cleanKey === 'fathermobile') newRow.fatherMobile = valStr
+          else if (cleanKey === 'fathermobilebanking') newRow.fatherMobileBanking = valStr
+
+          // Mother
+          else if (cleanKey === 'mothernameen') newRow.motherNameEn = toTitleCase(valStr)
+          else if (cleanKey === 'mothernamebn') newRow.motherNameBn = valStr
+          else if (cleanKey === 'motheredu') newRow.motherEdu = valStr
+          else if (cleanKey === 'motherfathername') newRow.motherFatherName = valStr
+          else if (cleanKey === 'mothermothername') newRow.motherMotherName = valStr
+          else if (cleanKey === 'mothernid') newRow.motherNid = valStr
+          else if (cleanKey === 'motherdob') newRow.motherDob = parseExcelDate(rawValue)
+          else if (cleanKey === 'mothervillage') newRow.motherVillage = valStr
+          else if (cleanKey === 'motherpostoffice') newRow.motherPostOffice = valStr
+          else if (cleanKey === 'motherpostcode') newRow.motherPostCode = valStr
+          else if (cleanKey === 'motherupazila') newRow.motherUpazila = valStr
+          else if (cleanKey === 'mothermobile') newRow.motherMobile = valStr
+          else if (cleanKey === 'mothermobilebanking') newRow.motherMobileBanking = valStr
+
+          // Guardian
+          else if (['guardiannameen', 'guardianname', 'guardian'].includes(cleanKey)) newRow.guardianNameEn = toTitleCase(valStr)
+          else if (cleanKey === 'guardiannamebn') newRow.guardianNameBn = valStr
+          else if (cleanKey === 'guardianrelation') newRow.guardianRelation = valStr
+          else if (cleanKey === 'guardianedu') newRow.guardianEdu = valStr
+          else if (cleanKey === 'guardiannid') newRow.guardianNid = valStr
+          else if (cleanKey === 'guardiandob') newRow.guardianDob = parseExcelDate(rawValue)
+          else if (cleanKey === 'guardianvillage') newRow.guardianVillage = valStr
+          else if (cleanKey === 'guardianpostoffice') newRow.guardianPostOffice = valStr
+          else if (cleanKey === 'guardianpostcode') newRow.guardianPostCode = valStr
+          else if (cleanKey === 'guardianupazila') newRow.guardianUpazila = valStr
+          else if (['guardianmobile', 'guardianphone', 'phone', 'mobile'].includes(cleanKey)) newRow.guardianMobile = valStr
+          else if (cleanKey === 'guardianmobilebanking') newRow.guardianMobileBanking = valStr
         })
         return newRow
-      }).filter((row: any) => row.firstName && row.enrollmentId)
+      }).filter((row: any) => row.studentNameEn && row.enrollmentId)
 
       if (normalizedData.length === 0) {
-        alert("Could not find valid 'First Name' and 'Roll' columns in the Excel file.")
+        alert("Could not find valid 'Name' and 'Roll' columns in the Excel file.")
         return
       }
 
@@ -153,7 +235,7 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
         rollCounts[row.enrollmentId] = (rollCounts[row.enrollmentId] || 0) + 1
       })
 
-      const existingStudents = await validateRollNumbers(selectedBulkClassId, rolls)
+      const existingStudents = await validateRollNumbers(String(selectedBulkClassId), rolls)
 
       let hasErrors = false
       const updatedData = parsedBulkData.map(row => {
@@ -164,7 +246,7 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
         const conflict = existingStudents.find((e: any) => e.enrollment_id === row.enrollmentId)
         if (conflict) {
           hasErrors = true
-          return { ...row, error: `Taken by: ${conflict.first_name} ${conflict.last_name}` }
+          return { ...row, error: `Taken by: ${conflict.first_name}` }
         }
         return { ...row, error: null }
       })
@@ -176,7 +258,7 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
         return 
       }
 
-      await addBulkStudents(schoolId, selectedBulkClassId, parsedBulkData)
+      await addBulkStudents(schoolId, String(selectedBulkClassId), parsedBulkData)
       alert(`Successfully enrolled ${parsedBulkData.length} students!`)
       setParsedBulkData([])
       setSelectedBulkClassId('')
@@ -197,37 +279,39 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
   }
 
   return (
-    <>
-      {editorImage && (
-        <PhotoEditor 
-          initialImage={editorImage} 
-          onCancel={() => setEditorImage(null)} 
-          onComplete={handleEditorComplete} 
-        />
-      )}
+    <div className="font-sans w-full">
+      {editorImage && <PhotoEditor initialImage={editorImage} onCancel={() => setEditorImage(null)} onComplete={handleEditorComplete} />}
 
       {/* Mode Switcher */}
-      <div className="flex bg-gray-200 p-1 rounded-sm w-max mb-8">
-        <button onClick={() => setEntryMode('single')} className={`px-6 py-2 text-sm font-bold rounded-sm transition-colors ${entryMode === 'single' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-700'}`}>
-          Single Student Entry
+      <div className="flex bg-stone-100 p-1.5 rounded-sm w-full md:w-max mb-8 border border-stone-200">
+        <button 
+          onClick={() => setEntryMode('single')} 
+          className={`flex-1 md:flex-none px-6 py-3 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${entryMode === 'single' ? 'bg-white shadow-sm text-[#6b4c9a]' : 'text-stone-500 hover:text-stone-700'}`}
+        >
+          Detailed Admission
         </button>
-        <button onClick={() => setEntryMode('bulk')} className={`px-6 py-2 text-sm font-bold rounded-sm transition-colors ${entryMode === 'bulk' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-700'}`}>
+        <button 
+          onClick={() => setEntryMode('bulk')} 
+          className={`flex-1 md:flex-none px-6 py-3 text-[10px] font-bold uppercase tracking-widest rounded-sm transition-all ${entryMode === 'bulk' ? 'bg-white shadow-sm text-[#6b4c9a]' : 'text-stone-500 hover:text-stone-700'}`}
+        >
           Bulk Excel Import
         </button>
       </div>
 
+      {/* --- SINGLE ENTRY MODE --- */}
       {entryMode === 'single' && (
         <form 
           action={async (formData) => {
             if (isSubmitting) return
+            if (!classId) return alert("Please select a Class!")
             setIsSubmitting(true)
+            
             try {
-              const classId = formData.get('classId') as string
               const enrollmentId = formData.get('enrollmentId') as string
-              const existing = await validateRollNumbers(classId, [enrollmentId])
+              const existing = await validateRollNumbers(String(classId), [enrollmentId])
               
               if (existing.length > 0) {
-                alert(`Error: Roll No ${enrollmentId} is already assigned to ${existing[0].first_name} ${existing[0].last_name} in this class. Please choose a different roll.`)
+                alert(`Error: Roll No ${enrollmentId} is already assigned to ${existing[0].first_name} in this class. Please choose a different roll.`)
                 setIsSubmitting(false)
                 return
               }
@@ -243,9 +327,17 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
                 formData.append('uploadedPhotoUrl', data.secure_url)
               }
 
-              formData.set('firstName', toTitleCase(formData.get('firstName') as string))
-              formData.set('lastName', toTitleCase(formData.get('lastName') as string))
-              formData.set('guardianName', toTitleCase(formData.get('guardianName') as string))
+              formData.append('classId', String(classId))
+              formData.append('gender', String(gender))
+              formData.append('bloodGroup', String(bloodGroup))
+              formData.append('fatherMobileBanking', String(fatherBanking))
+              formData.append('motherMobileBanking', String(motherBanking))
+              formData.append('guardianMobileBanking', String(guardianBanking))
+
+              formData.set('studentNameEn', toTitleCase(formData.get('studentNameEn') as string))
+              formData.set('fatherNameEn', toTitleCase(formData.get('fatherNameEn') as string))
+              formData.set('motherNameEn', toTitleCase(formData.get('motherNameEn') as string))
+              formData.set('guardianNameEn', toTitleCase(formData.get('guardianNameEn') as string))
 
               const result = await addStudent(formData)
               if (result?.success) {
@@ -262,153 +354,312 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
         >
           <input type="hidden" name="schoolId" value={schoolId} />
 
-          <div className="flex flex-col sm:flex-row gap-8 items-start">
-            <div className="flex flex-col items-center gap-3 w-full sm:w-1/3">
-              <div className="w-32 h-32 rounded-full border-4 border-white shadow-sm bg-slate-100 overflow-hidden flex items-center justify-center">
-                {previewUrl ? <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-slate-400 text-sm font-bold">No Photo</span>}
+          {/* BLOCK 1: Academic & Photo */}
+          <div className="bg-white p-6 md:p-8 border border-stone-200 rounded-sm shadow-sm flex flex-col md:flex-row gap-8 items-start">
+            <div className="flex flex-col items-center gap-4 shrink-0 w-full md:w-auto">
+              <div className="w-40 h-40 rounded-sm border-2 border-stone-200 shadow-sm bg-stone-50 overflow-hidden flex items-center justify-center p-1">
+                <div className="w-full h-full bg-white border border-stone-100 flex items-center justify-center">
+                  {previewUrl ? <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-xl font-bold text-stone-300">ছবি</span>}
+                </div>
               </div>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs bg-slate-200 text-slate-700 px-4 py-2 rounded-sm hover:bg-slate-300 font-bold">
-                Select Photo
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()} 
+                className="w-full md:w-40 bg-white text-stone-600 border border-stone-200 px-4 py-3 rounded-sm hover:bg-stone-50 hover:text-[#6b4c9a] font-bold text-[10px] uppercase tracking-widest transition-colors shadow-sm"
+              >
+                Upload Photo
               </button>
               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
             </div>
 
-            <div className="w-full sm:w-2/3 flex flex-col gap-6">
-              <div className="space-y-4">
-                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Academic Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Class Assigned</label>
-                    <select name="classId" required className="w-full p-2.5 border border-slate-300 rounded-sm bg-white font-medium text-sm">
-                      <option value="">Select a class...</option>
-                      {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Enrollment ID / Roll No</label>
-                    <input type="text" name="enrollmentId" required className="w-full p-2.5 border border-slate-300 rounded-sm font-bold text-sm" />
-                  </div>
+            <div className="flex-1 w-full relative z-[60]">
+              <SectionHeader bn="ভর্তি সংক্রান্ত তথ্য" en="Office Use" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="flex flex-col h-full justify-end relative">
+                  <BiLabel bn="শ্রেণি" en="Class" required />
+                  <Dropdown options={classOptions} value={classId} onChange={(val) => setClassId(val)} placeholder="Select Class..." hasSearch />
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Personal Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-bold text-slate-700 mb-1">First Name</label><input type="text" name="firstName" required className="w-full p-2.5 border border-slate-300 rounded-sm text-sm font-medium" /></div>
-                  <div><label className="block text-xs font-bold text-slate-700 mb-1">Last Name</label><input type="text" name="lastName" className="w-full p-2.5 border border-slate-300 rounded-sm text-sm font-medium" /></div>
+                <div className="flex flex-col h-full justify-end">
+                  <BiLabel bn="রোল" en="Roll No" required />
+                  <input type="text" name="enrollmentId" required className={inputClass} />
                 </div>
-                
-                {/* 3-Column Grid for Dates, Gender, and Blood Group */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Date of Birth</label>
-                    <input type="date" name="dateOfBirth" className="w-full p-2.5 border border-slate-300 rounded-sm text-sm font-medium" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Gender</label>
-                    <select name="gender" className="w-full p-2.5 border border-slate-300 rounded-sm bg-white text-sm font-medium">
-                      <option value="">Select...</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Blood Group</label>
-                    <select name="bloodGroup" className="w-full p-2.5 border border-slate-300 rounded-sm bg-white text-sm font-bold text-slate-700">
-                      <option value="">Select...</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </select>
-                  </div>
+                <div className="flex flex-col h-full justify-end">
+                  <BiLabel bn="ভর্তির বছর" en="Year" />
+                  <input type="text" name="admissionYear" placeholder="e.g. 2026" className={inputClass} />
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Guardian Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-bold text-slate-700 mb-1">Guardian Name</label><input type="text" name="guardianName" className="w-full p-2.5 border border-slate-300 rounded-sm text-sm font-medium" /></div>
-                  <div><label className="block text-xs font-bold text-slate-700 mb-1">Guardian Phone</label><input type="tel" name="guardianPhone" className="w-full p-2.5 border border-slate-300 rounded-sm text-sm font-medium" /></div>
+                <div className="flex flex-col h-full justify-end">
+                  <BiLabel bn="পুনরাবৃত্তি রোল" en="Prev Roll" />
+                  <input type="text" name="previousRoll" className={inputClass} />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-slate-200 pt-6">
-            <button type="submit" disabled={isSubmitting} className="w-full bg-slate-900 text-white py-3.5 rounded-sm hover:bg-slate-800 transition-colors font-bold disabled:opacity-50 text-base shadow-sm">
-              {isSubmitting ? 'Registering Student...' : 'Complete Enrollment'}
+          {/* BLOCK 2: Student Identity */}
+          <div className="bg-white p-6 md:p-8 border border-stone-200 rounded-sm shadow-sm relative z-[50]">
+            <SectionHeader bn="শিক্ষার্থীর তথ্য" en="Student Info" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="নাম (বাংলায়)" en="Name (Bangla)" /><input type="text" name="nameBangla" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="ইংরেজিতে" en="Name (English)" required /><input type="text" name="studentNameEn" required className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="জন্ম নিবন্ধন নং" en="Birth Reg No" /><input type="text" name="birthRegNo" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="জন্ম তারিখ" en="Date of Birth" /><input type="date" name="dateOfBirth" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end relative">
+                <BiLabel bn="লিঙ্গ" en="Gender" />
+                <Dropdown options={genderOptions} value={gender} onChange={(val) => setGender(val)} placeholder="Select Gender" />
+              </div>
+              <div className="flex flex-col h-full justify-end relative">
+                <BiLabel bn="রক্তের গ্রুপ" en="Blood Group" />
+                <Dropdown options={bloodGroupOptions} value={bloodGroup} onChange={(val) => setBloodGroup(val)} placeholder="Select Blood Group" />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-stone-100">
+              <h4 className="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">ঠিকানা <span className="text-[10px] uppercase tracking-widest text-stone-400">/ Address</span></h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-2 flex flex-col h-full justify-end"><BiLabel bn="গ্রাম" en="Village" /><input type="text" name="village" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="ডাকঘর" en="Post Office" /><input type="text" name="postOffice" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="পোস্ট কোড" en="Post Code" /><input type="text" name="postCode" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="উপজেলা" en="Upazila" /><input type="text" name="upazila" className={inputClass} /></div>
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCK 3: Father's Info */}
+          <div className="bg-white p-6 md:p-8 border border-stone-200 rounded-sm shadow-sm relative z-[40]">
+            <SectionHeader bn="পিতার তথ্য" en="Father's Info" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="নাম (বাংলায়)" en="Name (BN)" /><input type="text" name="fatherNameBn" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="ইংরেজিতে" en="Name (EN)" /><input type="text" name="fatherNameEn" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="শিক্ষাগত যোগ্যতা" en="Education" /><input type="text" name="fatherEdu" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="পিতার নাম" en="Father's Name" /><input type="text" name="fatherFatherName" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="মাতার নাম" en="Mother's Name" /><input type="text" name="fatherMotherName" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="জাতীয় পরিচয়পত্র" en="Smart Card No" /><input type="text" name="fatherNid" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end lg:col-span-3"><BiLabel bn="জন্ম তারিখ" en="Date of Birth" /><input type="date" name="fatherDob" className={inputClass} /></div>
+            </div>
+
+            <div className="pt-6 border-t border-stone-100">
+              <h4 className="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">ঠিকানা <span className="text-[10px] uppercase tracking-widest text-stone-400">/ Father's Address</span></h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-2 flex flex-col h-full justify-end"><BiLabel bn="গ্রাম" en="Village" /><input type="text" name="fatherVillage" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="ডাকঘর" en="Post Office" /><input type="text" name="fatherPostOffice" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="পোস্ট কোড" en="Post Code" /><input type="text" name="fatherPostCode" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="উপজেলা" en="Upazila" /><input type="text" name="fatherUpazila" className={inputClass} /></div>
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCK 4: Mother's Info */}
+          <div className="bg-white p-6 md:p-8 border border-stone-200 rounded-sm shadow-sm relative z-[30]">
+            <SectionHeader bn="মাতার তথ্য" en="Mother's Info" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="নাম (বাংলায়)" en="Name (BN)" /><input type="text" name="motherNameBn" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="ইংরেজিতে" en="Name (EN)" /><input type="text" name="motherNameEn" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="শিক্ষাগত যোগ্যতা" en="Education" /><input type="text" name="motherEdu" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="পিতার নাম" en="Father's Name" /><input type="text" name="motherFatherName" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="মাতার নাম" en="Mother's Name" /><input type="text" name="motherMotherName" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="জাতীয় পরিচয়পত্র" en="Smart Card No" /><input type="text" name="motherNid" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end lg:col-span-3"><BiLabel bn="জন্ম তারিখ" en="Date of Birth" /><input type="date" name="motherDob" className={inputClass} /></div>
+            </div>
+
+            <div className="pt-6 border-t border-stone-100">
+              <h4 className="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">ঠিকানা <span className="text-[10px] uppercase tracking-widest text-stone-400">/ Mother's Address</span></h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-2 flex flex-col h-full justify-end"><BiLabel bn="গ্রাম" en="Village" /><input type="text" name="motherVillage" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="ডাকঘর" en="Post Office" /><input type="text" name="motherPostOffice" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="পোস্ট কোড" en="Post Code" /><input type="text" name="motherPostCode" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="উপজেলা" en="Upazila" /><input type="text" name="motherUpazila" className={inputClass} /></div>
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCK 5: Guardian's Info */}
+          <div className="bg-white p-6 md:p-8 border border-stone-200 rounded-sm shadow-sm relative z-[20]">
+            <SectionHeader bn="অভিভাবকের তথ্য" en="Guardian's Info" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="নাম (বাংলায়)" en="Name (BN)" /><input type="text" name="guardianNameBn" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="ইংরেজিতে" en="Name (EN)" /><input type="text" name="guardianNameEn" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="সম্পর্ক" en="Relation" /><input type="text" name="guardianRelation" className={inputClass} /></div>
+              
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="শিক্ষাগত যোগ্যতা" en="Education" /><input type="text" name="guardianEdu" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="জাতীয় পরিচয়পত্র" en="Smart Card No" /><input type="text" name="guardianNid" className={inputClass} /></div>
+              <div className="flex flex-col h-full justify-end"><BiLabel bn="জন্ম তারিখ" en="Date of Birth" /><input type="date" name="guardianDob" className={inputClass} /></div>
+            </div>
+
+            <div className="pt-6 border-t border-stone-100">
+              <h4 className="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">ঠিকানা <span className="text-[10px] uppercase tracking-widest text-stone-400">/ Guardian's Address</span></h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-2 flex flex-col h-full justify-end"><BiLabel bn="গ্রাম" en="Village" /><input type="text" name="guardianVillage" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="ডাকঘর" en="Post Office" /><input type="text" name="guardianPostOffice" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="পোস্ট কোড" en="Post Code" /><input type="text" name="guardianPostCode" className={inputClass} /></div>
+                <div className="flex flex-col h-full justify-end"><BiLabel bn="উপজেলা" en="Upazila" /><input type="text" name="guardianUpazila" className={inputClass} /></div>
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCK 6: Mobile & Banking */}
+          <div className="bg-white p-6 md:p-8 border border-stone-200 rounded-sm shadow-sm relative z-[10]">
+            <SectionHeader bn="মোবাইল নম্বর ও ব্যাংকিং" en="Mobile & Banking" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Father */}
+              <div className="bg-stone-50 border border-stone-200 p-6 rounded-sm flex flex-col justify-between">
+                <div>
+                  <BiLabel bn="পিতার মোবাইল" en="Father's Mobile" />
+                  <input type="tel" name="fatherMobile" className={inputClass} />
+                </div>
+                <div className="relative z-30 pt-5 mt-5 border-t border-stone-200">
+                  <BiLabel bn="ব্যাংকিং অপারেটর" en="Banking" />
+                  <Dropdown options={bankingOptions} value={fatherBanking} onChange={(val) => setFatherBanking(val as string)} placeholder="Select Operator" />
+                </div>
+              </div>
+
+              {/* Mother */}
+              <div className="bg-stone-50 border border-stone-200 p-6 rounded-sm flex flex-col justify-between">
+                <div>
+                  <BiLabel bn="মাতার মোবাইল" en="Mother's Mobile" />
+                  <input type="tel" name="motherMobile" className={inputClass} />
+                </div>
+                <div className="relative z-30 pt-5 mt-5 border-t border-stone-200">
+                  <BiLabel bn="ব্যাংকিং অপারেটর" en="Banking" />
+                  <Dropdown options={bankingOptions} value={motherBanking} onChange={(val) => setMotherBanking(val as string)} placeholder="Select Operator" />
+                </div>
+              </div>
+
+              {/* Guardian */}
+              <div className="bg-stone-50 border border-stone-200 p-6 rounded-sm flex flex-col justify-between">
+                <div>
+                  <BiLabel bn="অভিভাবকের মোবাইল" en="Guardian's Mobile" />
+                  <input type="tel" name="guardianMobile" className={inputClass} />
+                </div>
+                <div className="relative z-30 pt-5 mt-5 border-t border-stone-200">
+                  <BiLabel bn="ব্যাংকিং অপারেটর" en="Banking" />
+                  <Dropdown options={bankingOptions} value={guardianBanking} onChange={(val) => setGuardianBanking(val as string)} placeholder="Select Operator" />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="pt-6 pb-12 relative z-0">
+            <button 
+              type="submit" 
+              disabled={isSubmitting} 
+              className="w-full bg-[#6b4c9a] text-white py-5 rounded-sm hover:bg-[#5a3f82] transition-colors font-bold tracking-widest uppercase disabled:opacity-50 text-xs shadow-sm flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? 'Registering Student...' : 'Complete Enrollment Process'}
             </button>
           </div>
         </form>
       )}
 
+      {/* --- BULK ENTRY --- */}
       {entryMode === 'bulk' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-200 p-6 rounded-sm shadow-sm flex flex-wrap gap-6 items-center justify-between">
-            <div className="flex-grow max-w-md">
-              <label className="block text-xs font-bold tracking-widest uppercase text-slate-500 mb-2">1. Target Class for this Batch</label>
-              <select value={selectedBulkClassId} onChange={e => setSelectedBulkClassId(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-sm bg-white text-slate-900 font-bold text-sm">
-                <option value="">-- Choose Destination Class --</option>
-                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+        <div className="space-y-6 md:space-y-8">
+          <div className="bg-[#fcf8f8] border border-[#b4483e]/20 p-5 md:p-6 rounded-sm flex gap-4 text-[#b4483e]">
+            <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p className="text-sm leading-relaxed tracking-wide font-medium text-stone-700">
+              <strong className="text-[#b4483e] font-bold uppercase tracking-widest text-[10px] block mb-1">Administrative Note</strong>
+              Bulk import handles comprehensive academic and personal data mapping. Biometric photos must be updated individually from the student profile page after import.
+            </p>
+          </div>
+
+          <div className="bg-white border border-stone-200 p-6 md:p-8 rounded-sm shadow-sm flex flex-col md:flex-row gap-8 items-start relative z-50">
+            <div className="w-full md:flex-1">
+              <label className="block text-[10px] font-bold tracking-widest uppercase text-stone-600 mb-3">1. Target Class for this Batch</label>
+              <Dropdown 
+                options={classOptions} 
+                value={selectedBulkClassId} 
+                onChange={(val) => setSelectedBulkClassId(val)} 
+                placeholder="-- Choose Destination Class --" 
+                hasSearch 
+              />
             </div>
-            <div className="flex-grow max-w-md">
-              <label className="block text-xs font-bold tracking-widest uppercase text-slate-500 mb-2">2. Upload Excel/CSV File</label>
-              <input type="file" accept=".xlsx, .xls, .csv" ref={bulkFileInputRef} onChange={handleBulkFileUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-sm file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer border border-slate-300 rounded-sm bg-slate-50" />
+            <div className="w-full md:flex-1">
+              <label className="block text-[10px] font-bold tracking-widest uppercase text-stone-600 mb-3">2. Upload Excel/CSV File</label>
+              <input 
+                type="file" 
+                accept=".xlsx, .xls, .csv" 
+                ref={bulkFileInputRef} 
+                onChange={handleBulkFileUpload} 
+                className="block w-full text-sm text-stone-500 file:mr-4 file:py-3 file:px-5 file:rounded-sm file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-widest file:bg-stone-900 file:text-white hover:file:bg-stone-800 cursor-pointer border border-stone-200 rounded-sm bg-stone-50 transition-colors" 
+              />
             </div>
           </div>
 
           {parsedBulkData.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-sm overflow-hidden shadow-sm">
-              <div className="bg-slate-50 p-5 border-b border-slate-200 flex justify-between items-center">
+            <div className="bg-white border border-stone-200 rounded-sm overflow-hidden shadow-sm">
+              <div className="bg-[#fbf9fc] p-6 border-b border-[#dad3e3] flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
-                  <h3 className="font-black text-slate-900 tracking-tight">Data Preview & Validation</h3>
-                  <p className="text-xs text-emerald-600 font-bold mt-1">✓ Loaded {parsedBulkData.length} valid rows. Please verify duplicates.</p>
+                  <h3 className="font-bold text-stone-900 text-lg tracking-wide uppercase">Data Validation</h3>
+                  <p className="text-[10px] text-[#6b4c9a] uppercase tracking-widest font-bold mt-1">✓ Loaded {parsedBulkData.length} valid rows. Please verify duplicates.</p>
                 </div>
-                <button onClick={handleBulkSubmit} disabled={isSubmitting} className="bg-emerald-600 text-white px-8 py-2.5 rounded-sm text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-sm">
+                <button 
+                  onClick={handleBulkSubmit} 
+                  disabled={isSubmitting} 
+                  className="w-full md:w-auto bg-emerald-700 text-white px-8 py-3.5 rounded-sm text-[10px] tracking-widest uppercase font-bold hover:bg-emerald-800 transition-colors disabled:opacity-50 shadow-sm"
+                >
                   {isSubmitting ? 'Validating & Importing...' : `Verify & Import ${parsedBulkData.length} Students`}
                 </button>
               </div>
-              <div className="overflow-x-auto max-h-[500px]">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-100 text-slate-600 sticky top-0 z-10 shadow-sm">
+              <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+                <table className="w-full text-left text-sm whitespace-nowrap min-w-max">
+                  <thead className="bg-stone-100 text-stone-600 sticky top-0 z-10 shadow-sm">
                     <tr>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">Roll No</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">First Name</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">Last Name</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">Gender</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">Blood Grp</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">Guardian</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">Phone</th>
-                      <th className="p-3 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px] bg-slate-200">Status</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Roll No</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Name (EN)</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Name (BN)</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">DOB</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Blood Grp</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Village</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Father's Name</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Father's Mobile</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Mother's Name</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px]">Mother's Mobile</th>
+                      <th className="p-4 font-bold border-b border-stone-200 uppercase tracking-widest text-[10px] bg-stone-200">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-stone-100">
                     {parsedBulkData.map((row, idx) => (
-                      <tr key={idx} className={row.error ? 'bg-rose-50' : 'hover:bg-slate-50'}>
+                      <tr key={idx} className={row.error ? 'bg-[#fcf8f8]' : 'hover:bg-stone-50'}>
                         <td className="p-2">
-                          <input type="text" value={row.enrollmentId} onChange={e => updateRow(idx, 'enrollmentId', e.target.value)} className={`w-20 p-1.5 border rounded-sm text-sm font-bold ${row.error ? 'border-rose-400 bg-rose-100 text-rose-900 focus:ring-rose-500' : 'bg-transparent border-transparent hover:border-slate-300 focus:bg-white text-slate-900'}`} />
+                          <input 
+                            type="text" 
+                            value={row.enrollmentId} 
+                            onChange={e => updateRow(idx, 'enrollmentId', e.target.value)} 
+                            className={`w-20 p-2.5 border rounded-sm text-sm font-bold transition-colors ${row.error ? 'border-[#b4483e]/50 bg-white text-[#b4483e] focus:ring-[#b4483e]' : 'bg-transparent border-transparent hover:border-stone-300 focus:bg-white focus:border-[#6b4c9a] text-stone-900'} focus:outline-none focus:ring-1`} 
+                          />
                         </td>
                         <td className="p-2">
-                          <input type="text" value={row.firstName} onChange={e => updateRow(idx, 'firstName', e.target.value)} className="w-full p-1.5 border border-transparent hover:border-slate-300 rounded-sm bg-transparent focus:bg-white text-slate-900 font-medium text-sm" />
+                          <input 
+                            type="text" 
+                            value={row.studentNameEn} 
+                            onChange={e => updateRow(idx, 'studentNameEn', e.target.value)} 
+                            className="w-full p-2.5 border border-transparent hover:border-stone-300 rounded-sm bg-transparent focus:bg-white text-stone-900 font-bold text-sm transition-colors focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a]" 
+                          />
                         </td>
                         <td className="p-2">
-                          <input type="text" value={row.lastName || ''} onChange={e => updateRow(idx, 'lastName', e.target.value)} className="w-full p-1.5 border border-transparent hover:border-slate-300 rounded-sm bg-transparent focus:bg-white text-slate-900 font-medium text-sm" />
+                          <input 
+                            type="text" 
+                            value={row.nameBangla || ''} 
+                            onChange={e => updateRow(idx, 'nameBangla', e.target.value)} 
+                            className="w-full p-2.5 border border-transparent hover:border-stone-300 rounded-sm bg-transparent focus:bg-white text-stone-900 font-bold text-sm transition-colors focus:outline-none focus:border-[#6b4c9a] focus:ring-1 focus:ring-[#6b4c9a]" 
+                          />
                         </td>
-                        <td className="p-3 text-slate-600 font-medium">{row.gender || '-'}</td>
-                        <td className="p-3 font-bold text-rose-600">{row.bloodGroup || '-'}</td>
-                        <td className="p-2">
-                          <input type="text" value={row.guardianName || ''} onChange={e => updateRow(idx, 'guardianName', e.target.value)} className="w-full p-1.5 border border-transparent hover:border-slate-300 rounded-sm bg-transparent focus:bg-white text-slate-600 text-sm" />
-                        </td>
-                        <td className="p-3 text-slate-600 font-medium">{row.guardianPhone || '-'}</td>
-                        <td className={`p-3 text-xs font-bold ${row.error ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {row.error ? row.error : 'Valid'}
+                        <td className="p-4 text-stone-600 font-medium">{row.dateOfBirth || '-'}</td>
+                        <td className="p-4 font-bold text-[#b4483e]">{row.bloodGroup || '-'}</td>
+                        <td className="p-4 text-stone-600 font-medium">{row.village || '-'}</td>
+                        <td className="p-4 text-stone-600 font-medium">{row.fatherNameEn || '-'}</td>
+                        <td className="p-4 text-stone-600 font-medium">{row.fatherMobile || '-'}</td>
+                        <td className="p-4 text-stone-600 font-medium">{row.motherNameEn || '-'}</td>
+                        <td className="p-4 text-stone-600 font-medium">{row.motherMobile || '-'}</td>
+                        <td className={`p-4 text-xs font-bold uppercase tracking-widest ${row.error ? 'text-[#b4483e]' : 'text-emerald-700'}`}>
+                          {row.error ? row.error : 'Valid Record'}
                         </td>
                       </tr>
                     ))}
@@ -419,6 +670,6 @@ export default function AddStudentForm({ schoolId, classes }: { schoolId: string
           )}
         </div>
       )}
-    </>
+    </div>
   )
 }

@@ -120,7 +120,8 @@ export async function deleteSubjectRecord(formData: FormData) {
   revalidatePath('/school-dashboard/setup')
   revalidatePath('/school-dashboard/teachers')
 }
-// SMART SUBJECT CREATOR & MAPPER
+
+// SMART SUBJECT CREATOR & MAPPER (Single Input)
 export async function addSubjectToClass(formData: FormData) {
   const schoolId = formData.get('schoolId') as string
   const classId = formData.get('classId') as string
@@ -159,6 +160,46 @@ export async function addSubjectToClass(formData: FormData) {
   // Code 23505 means it's already mapped, which is fine, we just ignore the error
   if (mapErr && mapErr.code !== '23505') {
     throw new Error(`Failed to map subject to class: ${mapErr.message}`)
+  }
+
+  revalidatePath('/school-dashboard/setup', 'layout')
+  return { success: true }
+}
+
+// NEW: SMART BULK SUBJECT MAPPER (For Predefined Checkboxes + Custom Array)
+export async function assignBulkSubjectsToClass(schoolId: string, classId: string, subjectNames: string[]) {
+  const supabase = await createClient()
+
+  for (const subjectName of subjectNames) {
+    let subjectId = null
+    const { data: existingSub } = await supabase.schema('gps')
+      .from('subjects')
+      .select('id')
+      .eq('school_id', schoolId)
+      .ilike('name', subjectName)
+      .maybeSingle()
+
+    if (existingSub) {
+      subjectId = existingSub.id
+    } else {
+      const { data: newSub, error: subErr } = await supabase.schema('gps')
+        .from('subjects')
+        .insert({ school_id: schoolId, name: subjectName })
+        .select('id')
+        .single()
+        
+      if (subErr) throw new Error(`Failed to create global subject: ${subErr.message}`)
+      subjectId = newSub.id
+    }
+
+    const { error: mapErr } = await supabase.schema('gps')
+      .from('class_subjects')
+      .insert({ class_id: classId, subject_id: subjectId })
+
+    // Ignore 23505 (Duplicate Key) so we don't crash if a user ticks a subject already assigned
+    if (mapErr && mapErr.code !== '23505') {
+      throw new Error(`Failed to map subject ${subjectName}: ${mapErr.message}`)
+    }
   }
 
   revalidatePath('/school-dashboard/setup', 'layout')

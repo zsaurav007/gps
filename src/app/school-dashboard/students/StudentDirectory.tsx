@@ -23,13 +23,13 @@ export default function StudentDirectory({ students, classes }: { students: any[
   // --- Bulk Actions & Mobile UI State ---
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isDeleting, setIsDeleting] = useState(false)
-  const [expandedCardId, setExpandedCardId] = useState<string | null>(null) // Tracks expanded mobile card
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
 
   // --- Filtering Logic ---
   let filteredStudents = students.filter(s => {
     const matchesClass = filterClass ? s.class_id === filterClass : true
     const matchesGender = filterGender ? s.gender?.toLowerCase() === filterGender.toLowerCase() : true
-    const searchStr = `${s.first_name} ${s.last_name} ${s.enrollment_id} ${s.guardian_name} ${s.guardian_phone}`.toLowerCase()
+    const searchStr = `${s.first_name} ${s.last_name || ''} ${s.enrollment_id} ${s.guardian_name} ${s.guardian_phone}`.toLowerCase()
     const matchesSearch = searchStr.includes(searchTerm.toLowerCase())
     return matchesClass && matchesGender && matchesSearch
   })
@@ -40,8 +40,8 @@ export default function StudentDirectory({ students, classes }: { students: any[
     let bValue: any = b[sortConfig.key] || ''
 
     if (sortConfig.key === 'student_name') {
-      aValue = `${a.first_name} ${a.last_name}`.toLowerCase()
-      bValue = `${b.first_name} ${b.last_name}`.toLowerCase()
+      aValue = `${a.first_name} ${a.last_name || ''}`.toLowerCase()
+      bValue = `${b.first_name} ${b.last_name || ''}`.toLowerCase()
     } else if (sortConfig.key === 'class_name') {
       aValue = classes.find(c => c.id === a.class_id)?.name?.toLowerCase() || ''
       bValue = classes.find(c => c.id === b.class_id)?.name?.toLowerCase() || ''
@@ -122,7 +122,7 @@ export default function StudentDirectory({ students, classes }: { students: any[
     const dataToExport = filteredStudents.map(s => ({
       'Roll No': s.enrollment_id,
       'Class': `Class ${classes.find(c => c.id === s.class_id)?.name || 'Unknown'}`,
-      'Student Name': `${s.first_name} ${s.last_name}`,
+      'Student Name': `${s.first_name} ${s.last_name || ''}`.trim(),
       'Gender': s.gender,
       'Guardian': s.guardian_name,
       'Phone': s.guardian_phone
@@ -177,7 +177,7 @@ export default function StudentDirectory({ students, classes }: { students: any[
             />
           </div>
 
-          {/* Filters using new Dropdown */}
+          {/* Filters using Dropdown */}
           <div className="w-full md:w-48 z-20">
             <Dropdown 
               options={classOptions}
@@ -256,7 +256,6 @@ export default function StudentDirectory({ students, classes }: { students: any[
                   className={`p-3.5 flex items-center gap-3 cursor-pointer transition-colors active:bg-stone-50 ${isExpanded ? 'bg-[#fbf9fc] border-b border-[#dad3e3]' : ''}`}
                   onClick={() => setExpandedCardId(isExpanded ? null : student.id)}
                 >
-                  {/* Stop Propagation to prevent opening the card when clicking the checkbox */}
                   <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                     <input 
                       type="checkbox" 
@@ -270,12 +269,12 @@ export default function StudentDirectory({ students, classes }: { students: any[
                     <img src={student.photo_url} alt="Profile" className="w-10 h-10 rounded-sm object-cover border border-stone-300 shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded-sm bg-stone-100 flex items-center justify-center text-xs text-stone-500 font-bold border border-stone-200 shrink-0">
-                      {student.first_name.charAt(0)}{student.last_name ? student.last_name.charAt(0) : ''}
+                      {student.first_name.charAt(0)}
                     </div>
                   )}
 
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-stone-900 text-sm truncate">{student.first_name} {student.last_name}</h4>
+                    <h4 className="font-bold text-stone-900 text-sm truncate">{student.first_name}</h4>
                     <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mt-0.5 truncate">
                       Roll {student.enrollment_id} <span className="text-stone-300 px-1">|</span> Class {classes.find(c => c.id === student.class_id)?.name}
                     </p>
@@ -306,17 +305,23 @@ export default function StudentDirectory({ students, classes }: { students: any[
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-3 mt-2 border-t border-stone-100">
+                      <div className="flex flex-wrap gap-2 pt-3 mt-2 border-t border-stone-100">
+                        <Link 
+                          href={`/school-dashboard/students/${student.id}/view`} 
+                          className="flex-1 min-w-[30%] text-center px-3 py-2.5 bg-[#fbf9fc] border border-[#dad3e3] text-[#6b4c9a] rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-[#f3eff8] transition-colors"
+                        >
+                          View Profile
+                        </Link>
                         <Link 
                           href={`/school-dashboard/students/${student.id}/edit`} 
-                          className="flex-1 text-center px-3 py-2.5 bg-stone-50 border border-stone-200 text-stone-700 rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-stone-100 transition-colors"
+                          className="flex-1 min-w-[30%] text-center px-3 py-2.5 bg-stone-50 border border-stone-200 text-stone-700 rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-stone-100 transition-colors"
                         >
                           Edit Profile
                         </Link>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-[30%]">
                           <DeleteStudentButton 
                             studentId={student.id} 
-                            studentName={`${student.first_name} ${student.last_name}`} 
+                            studentName={student.first_name} 
                           />
                         </div>
                       </div>
@@ -409,29 +414,35 @@ export default function StudentDirectory({ students, classes }: { students: any[
                       <img src={student.photo_url} alt="Profile" className="w-8 h-8 rounded-sm object-cover border border-stone-300 print:hidden" />
                     ) : (
                       <div className="w-8 h-8 rounded-sm bg-stone-100 flex items-center justify-center text-xs text-stone-500 font-bold border border-stone-200 print:hidden">
-                        {student.first_name.charAt(0)}{student.last_name ? student.last_name.charAt(0) : ''}
+                        {student.first_name.charAt(0)}
                       </div>
                     )}
-                    {student.first_name} {student.last_name}
+                    {student.first_name}
                   </div>
                 </td>
                 <td className="p-3 text-stone-600 capitalize">{student.gender || '-'}</td>
                 <td className="p-3 text-stone-800">{student.guardian_name || '-'}</td>
                 <td className="p-3 text-stone-600 font-medium">{student.guardian_phone || '-'}</td>
                 
-                {/* Actions Button */}
+                {/* Actions Buttons */}
                 <td className="p-3 text-right print:hidden">
                   <div className="flex justify-end gap-2 items-center">
                     <Link 
+                      href={`/school-dashboard/students/${student.id}/view`} 
+                      className="px-3 py-1.5 bg-[#fbf9fc] border border-[#dad3e3] text-[#6b4c9a] rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-[#f3eff8] transition-colors shadow-sm"
+                    >
+                      View
+                    </Link>
+                    <Link 
                       href={`/school-dashboard/students/${student.id}/edit`} 
-                      className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-sm text-[10px] uppercase tracking-widest font-medium hover:border-[#6b4c9a]/50 hover:text-[#6b4c9a] transition-colors shadow-sm"
+                      className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-sm text-[10px] uppercase tracking-widest font-bold hover:border-[#6b4c9a]/50 hover:text-[#6b4c9a] transition-colors shadow-sm"
                     >
                       Edit
                     </Link>
                     <div className="scale-90 origin-right">
                       <DeleteStudentButton 
                         studentId={student.id} 
-                        studentName={`${student.first_name} ${student.last_name}`} 
+                        studentName={student.first_name} 
                       />
                     </div>
                   </div>

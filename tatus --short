@@ -1,0 +1,26 @@
+warning: in the working copy of 'src/app/globals.css', LF will be replaced by CRLF the next time Git touches it
+ src/app/actions/exam-actions.ts                    | 178 [32m+++[m[31m---[m
+ src/app/actions/school-actions.ts                  |  21 [32m+[m[31m-[m
+ src/app/actions/setup-actions.ts                   |  43 [32m+[m[31m-[m
+ src/app/actions/student-actions.ts                 | 227 [32m+++++[m[31m--[m
+ src/app/globals.css                                |  12 [32m+[m[31m-[m
+ src/app/platform-dashboard/add-school/page.tsx     |  57 [32m+[m[31m-[m
+ .../school/[schoolId]/edit/page.tsx                |  76 [32m++[m[31m-[m
+ src/app/school-dashboard/Sidebar.tsx               |   2 [32m+[m
+ .../add-student/AddStudentForm.tsx                 | 559 [32m+++++++++++[m[31m-----[m
+ src/app/school-dashboard/add-student/page.tsx      |  30 [32m+[m[31m-[m
+ src/app/school-dashboard/exams/CreateExamForm.tsx  |  82 [31m---[m
+ .../school-dashboard/exams/ExamSetupManager.tsx    | 711 [32m++++++++++++[m[31m---------[m
+ src/app/school-dashboard/exams/page.tsx            |  35 [32m+[m[31m-[m
+ .../marks-entry/MarksEntrySheet.tsx                | 181 [32m+++[m[31m---[m
+ src/app/school-dashboard/page.tsx                  | 189 [32m++++[m[31m--[m
+ .../reports/CombinedReportsBuilder.tsx             | 632 [31m------------------[m
+ .../school-dashboard/reports/CumulativeSheet.tsx   | 514 [31m---------------[m
+ .../reports/IndividualReportView.tsx               | 476 [31m--------------[m
+ .../school-dashboard/reports/ReportsDashboard.tsx  | 213 [31m------[m
+ src/app/school-dashboard/reports/page.tsx          | 120 [32m++[m[31m--[m
+ src/app/school-dashboard/setup/SetupForms.tsx      | 196 [32m++++[m[31m--[m
+ .../school-dashboard/students/StudentDirectory.tsx |  47 [32m+[m[31m-[m
+ .../students/[id]/edit/EditStudentForm.tsx         | 387 [32m++++++[m[31m-----[m
+ .../school-dashboard/students/[id]/edit/page.tsx   |  41 [32m+[m[31m-[m
+ 24 files changed, 1967 insertions(+), 3062 deletions(-)

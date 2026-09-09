@@ -5,6 +5,26 @@ import { decrypt } from '@/lib/auth/jwt'
 import { createClient } from '@/lib/supabase/server'
 import DeleteTeacherButton from './DeleteTeacherButton' 
 
+// Utility to convert English numbers to Bengali numerals
+const engToBng = (str: string | number): string => {
+  if (str === null || str === undefined) return '';
+  const bngNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  return String(str).replace(/[0-9]/g, w => bngNums[Number(w)]);
+}
+
+// Utility to translate short months to Bengali
+const translateDateToBng = (dateString: string): string => {
+  const months: Record<string, string> = {
+    Jan: 'জানু', Feb: 'ফেব', Mar: 'মার্চ', Apr: 'এপ্রিল', May: 'মে', Jun: 'জুন', 
+    Jul: 'জুলাই', Aug: 'আগস্ট', Sep: 'সেপ্টে', Oct: 'অক্টো', Nov: 'নভে', Dec: 'ডিসে'
+  };
+  let bngDate = dateString;
+  Object.keys(months).forEach(engMonth => {
+    bngDate = bngDate.replace(engMonth, months[engMonth]);
+  });
+  return engToBng(bngDate);
+}
+
 export default async function TeachersDirectoryPage() {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('school_session')?.value
@@ -41,7 +61,7 @@ export default async function TeachersDirectoryPage() {
       full_name: headTeacher.full_name,
       photo_url: headTeacher.photo_url,
       // Fetches assigned subjects, defaults to Admin if empty
-      subjects_taught: headTeacher.subjects_taught || 'Administration & Leadership',
+      subjects_taught: headTeacher.subjects_taught || 'প্রশাসন ও নেতৃত্ব / ADMIN & LEADERSHIP',
       joining_date: headTeacher.created_at,
       is_head_teacher: true
     })
@@ -53,7 +73,7 @@ export default async function TeachersDirectoryPage() {
         id: t.id,
         full_name: t.full_name,
         photo_url: t.photo_url,
-        subjects_taught: t.subjects_taught || 'Unassigned',
+        subjects_taught: t.subjects_taught || 'অনির্ধারিত / UNASSIGNED',
         joining_date: t.joining_date,
         is_head_teacher: false
       })
@@ -67,22 +87,28 @@ export default async function TeachersDirectoryPage() {
         {/* Header Card */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center bg-white p-6 md:p-8 rounded-sm shadow-sm border border-stone-200 border-t-4 border-t-[#6b4c9a] gap-5">
           <div>
-            <h1 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">Faculty Directory</h1>
-            <p className="text-sm font-medium text-stone-600 mt-2">Manage staff profiles and teaching assignments.</p>
+            <h1 className="text-xl md:text-2xl font-semibold text-stone-900">
+              শিক্ষক ডিরেক্টরি 
+              <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-stone-400 ml-3">/ FACULTY DIRECTORY</span>
+            </h1>
+            <p className="text-base font-medium text-stone-600 mt-2">
+              শিক্ষক প্রোফাইল ও বিষয় অ্যাসাইনমেন্ট পরিচালনা করুন।
+              <span className="block text-[10px] uppercase tracking-widest text-stone-400 mt-1">Manage staff profiles and teaching assignments.</span>
+            </p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <Link 
               href="/school-dashboard" 
-              className="text-xs uppercase tracking-widest font-bold text-[#6b4c9a] hover:text-[#5a3f82] transition-colors flex items-center justify-center gap-2 bg-[#fbf9fc] px-5 py-3 rounded-sm border border-[#dad3e3]"
+              className="text-sm font-bold text-[#6b4c9a] hover:text-[#5a3f82] transition-colors flex items-center justify-center gap-2 bg-[#fbf9fc] px-5 py-3 rounded-sm border border-[#dad3e3]"
             >
-              &larr; Dashboard
+              &larr; ড্যাশবোর্ড <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1">/ DASHBOARD</span>
             </Link>
             <Link 
               href="/school-dashboard/add-teacher"
-              className="bg-[#6b4c9a] text-white px-5 py-3 rounded-sm text-xs uppercase tracking-widest font-bold hover:bg-[#5a3f82] transition-colors shadow-sm flex items-center justify-center"
+              className="bg-[#6b4c9a] text-white px-5 py-3 rounded-sm text-sm font-bold hover:bg-[#5a3f82] transition-colors shadow-sm flex items-center justify-center"
             >
-              + Add Teacher
+              + শিক্ষক যোগ করুন <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1">/ ADD TEACHER</span>
             </Link>
           </div>
         </div>
@@ -103,8 +129,8 @@ export default async function TeachersDirectoryPage() {
                   ${staff.is_head_teacher ? 'bg-[#fbf9fc] border-[#dad3e3]' : 'bg-stone-50 border-stone-100'}
                 `}>
                   {staff.is_head_teacher && (
-                    <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-widest text-white bg-[#6b4c9a] px-2 py-1 rounded-sm shadow-sm">
-                      Head Teacher
+                    <span className="absolute top-3 right-3 text-xs font-bold uppercase tracking-widest text-white bg-[#6b4c9a] px-2.5 py-1 rounded-sm shadow-sm">
+                      প্রধান শিক্ষক <span className="text-[8px] opacity-80 ml-1">/ HEAD TEACHER</span>
                     </span>
                   )}
                   
@@ -122,38 +148,48 @@ export default async function TeachersDirectoryPage() {
                     )}
                   </div>
                   
-                  <h3 className="text-base font-bold text-stone-900 text-center uppercase tracking-wide leading-tight mb-3">
+                  <h3 className="text-lg font-bold text-stone-900 text-center uppercase tracking-wide leading-tight mb-3">
                     {staff.full_name}
                   </h3>
                   
-                  {/* Intelligent Scrollable Readable Text Block */}
-                  <div className={`w-full p-2.5 rounded-sm border shadow-inner mt-auto
-                    ${staff.is_head_teacher ? 'bg-white border-[#dad3e3]' : 'bg-white border-stone-200'}
-                  `}>
-                    <div className="max-h-[58px] overflow-y-auto custom-scrollbar pr-1">
-                      <p className={`text-xs font-semibold leading-relaxed text-center
-                        ${staff.is_head_teacher ? 'text-[#6b4c9a]' : 'text-stone-600'}
-                      `}>
-                        {staff.subjects_taught}
-                      </p>
+                  {/* Intelligent Scrollable Subject Badges */}
+                  <div className="w-full max-h-[68px] overflow-y-auto custom-scrollbar mt-1">
+                    <div className="flex flex-wrap justify-center gap-1.5 p-1">
+                      {staff.subjects_taught.split(',').map((sub: string, index: number) => {
+                        const subjectName = sub.trim()
+                        if (!subjectName) return null
+                        return (
+                          <span 
+                            key={index} 
+                            className={`text-[11px] md:text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-sm text-center shadow-sm border leading-tight
+                              ${staff.is_head_teacher ? 'bg-white text-[#6b4c9a] border-[#dad3e3]' : 'bg-white text-stone-600 border-stone-200'}
+                            `}
+                          >
+                            {subjectName}
+                          </span>
+                        )
+                      })}
                     </div>
                   </div>
-
                 </div>
 
                 {/* Staff Details */}
-                <div className="p-5 flex-grow flex flex-col justify-center space-y-3 bg-white">
-                  <div className="flex justify-between items-center border-b border-stone-100 pb-2.5">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Joined</span>
-                    <span className="text-xs font-bold text-stone-800 uppercase tracking-wide">
-                      {staff.joining_date ? new Date(staff.joining_date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
+                <div className="p-5 flex-grow flex flex-col justify-center space-y-4 bg-white">
+                  <div className="flex justify-between items-center border-b border-stone-100 pb-3">
+                    <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">
+                      যোগদান <span className="text-[9px] text-stone-400 ml-1">/ JOINED</span>
+                    </span>
+                    <span className="text-sm md:text-base font-bold text-stone-800 uppercase tracking-wide">
+                      {staff.joining_date ? translateDateToBng(new Date(staff.joining_date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })) : 'N/A'}
                     </span>
                   </div>
                   {!staff.is_head_teacher && (
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Status</span>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-1 rounded-sm border border-emerald-200">
-                        Active
+                      <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">
+                        অবস্থা <span className="text-[9px] text-stone-400 ml-1">/ STATUS</span>
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-1 rounded-sm border border-emerald-200">
+                        সক্রিয় <span className="text-[8px] opacity-70 ml-1">/ ACTIVE</span>
                       </span>
                     </div>
                   )}
@@ -163,9 +199,9 @@ export default async function TeachersDirectoryPage() {
                 <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end gap-2 mt-auto">
                   <Link 
                     href={`/school-dashboard/teachers/${staff.id}/edit`}
-                    className="flex-1 text-center px-3 py-2.5 bg-white border border-stone-300 text-stone-700 rounded-sm text-[10px] uppercase tracking-widest font-bold hover:bg-stone-50 hover:text-[#6b4c9a] transition-colors shadow-sm"
+                    className="flex-1 text-center px-3 py-2.5 bg-white border border-stone-300 text-stone-700 rounded-sm text-xs md:text-sm font-bold hover:bg-stone-50 hover:text-[#6b4c9a] transition-colors shadow-sm"
                   >
-                    Edit
+                    এডিট <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1">/ EDIT</span>
                   </Link>
                   
                   {/* Hide Delete button for Head Teacher */}
@@ -187,12 +223,15 @@ export default async function TeachersDirectoryPage() {
             <div className="w-16 h-16 bg-stone-50 border border-stone-200 rounded-full flex items-center justify-center mb-4 shadow-sm">
               <svg className="w-8 h-8 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
             </div>
-            <p className="text-stone-500 font-medium text-sm tracking-wide mb-6">No teachers have been added to this institution yet.</p>
+            <p className="text-stone-500 font-medium text-base tracking-wide mb-6 text-center">
+              এই প্রতিষ্ঠানে এখনো কোনো শিক্ষক যোগ করা হয়নি।
+              <span className="block text-sm italic font-normal mt-1">No teachers have been added to this institution yet.</span>
+            </p>
             <Link 
               href="/school-dashboard/add-teacher"
-              className="bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm hover:bg-[#5a3f82] transition-colors text-[11px] uppercase tracking-widest font-bold shadow-sm"
+              className="bg-[#6b4c9a] text-white px-8 py-3.5 rounded-sm hover:bg-[#5a3f82] transition-colors text-xs md:text-sm font-bold shadow-sm"
             >
-              Add Your First Teacher
+              আপনার প্রথম শিক্ষক যোগ করুন <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1.5">/ ADD YOUR FIRST TEACHER</span>
             </Link>
           </div>
         )}

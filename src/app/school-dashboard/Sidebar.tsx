@@ -29,7 +29,8 @@ const navItems = [
   { name: 'Class Routines', href: '/school-dashboard/routine', icon: Icons.Routine },
   { name: 'School Setup', href: '/school-dashboard/setup', icon: Icons.Setup },
   { name: 'Exams & Marks', href: '/school-dashboard/exams', icon: Icons.Exams },
-  { name: 'Report Engine', href: '/school-dashboard/reports', icon: Icons.Reports },
+  { name: 'Results', href: '/school-dashboard/results', icon: Icons.Exams },
+  { name: 'Report', href: '/school-dashboard/report-info', icon: Icons.Reports },
   { name: 'Data Lifecycle', href: '/school-dashboard/lifecycle', icon: Icons.Lifecycle },
 ]
 
@@ -50,7 +51,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Trigger - floating 3-dot button, no bar */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className={`
@@ -63,7 +63,6 @@ export default function Sidebar() {
         {isMobileOpen ? Icons.Close : Icons.Menu}
       </button>
 
-      {/* Sidebar Container - single consistent color, no glass/transparency swap */}
       <div className={`
         fixed top-0 left-0 h-screen z-40 flex flex-col justify-between
         transition-all duration-400 ease-in-out
@@ -72,16 +71,11 @@ export default function Sidebar() {
         ${isMobileOpen ? 'w-[260px] translate-x-0' : 'w-[260px] -translate-x-full md:translate-x-0'}
       `}>
 
-        {/* Top accent bar - the "something else" visual touch, always same brand color */}
         <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-[#6b4c9a] via-[#9575c9] to-[#6b4c9a]" />
-
-        {/* Soft ambient glow, purely decorative, never toggles */}
         <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#6b4c9a]/25 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Section: Logo & Links */}
         <div className="flex flex-col h-full relative">
 
-          {/* Logo Area */}
           <div className="h-20 px-5 flex items-center shrink-0 border-b border-white/10">
             <div className="w-10 h-10 bg-white rounded-sm flex items-center justify-center shrink-0 shadow-[0_0_18px_rgba(107,76,154,0.55)] p-1.5 overflow-hidden">
               <Image 
@@ -98,20 +92,14 @@ export default function Sidebar() {
             </span>
           </div>
 
-          {/* Section label - matches form section-heading style */}
           <div className="px-5 pt-6 pb-2 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
             <span className="text-[10px] font-bold text-[#c3a9ec] uppercase tracking-widest">Main Navigation</span>
           </div>
 
-          {/* Navigation Links */}
           <nav className="flex-1 overflow-y-auto overflow-x-hidden pb-4 px-3 pt-2 flex flex-col gap-1.5 custom-scrollbar">
             {navItems.map((item) => {
               const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
-              
-              // Prevent Dashboard root from matching everything
-              const isStrictActive = item.href === '/school-dashboard' 
-                ? pathname === '/school-dashboard'
-                : isActive
+              const isStrictActive = item.href === '/school-dashboard' ? pathname === '/school-dashboard' : isActive
 
               return (
                 <Link
@@ -126,7 +114,6 @@ export default function Sidebar() {
                     }
                   `}
                 >
-                  {/* Subtle active indicator dot */}
                   {isStrictActive && (
                     <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1 h-5 bg-white rounded-sm"></div>
                   )}
@@ -144,9 +131,7 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        {/* Bottom Section: Logout & Credits */}
         <div className="shrink-0 p-3 border-t border-white/10">
-
           <button
             onClick={handleLogout}
             className="flex items-center px-3.5 py-3 w-full rounded-sm bg-transparent text-[#e39b8f] hover:bg-white/5 hover:text-[#f0b3a8] transition-all duration-300 group/logout"
@@ -158,16 +143,13 @@ export default function Sidebar() {
               Logout
             </span>
           </button>
-
           <p className="px-3.5 pt-2 text-[10px] text-[#8f7bb0] font-medium tracking-wide whitespace-nowrap text-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
             Developed by Zulkarnain Saurav
           </p>
-
         </div>
 
       </div>
 
-      {/* Mobile Background Overlay */}
       {isMobileOpen && (
         <div
           onClick={() => setIsMobileOpen(false)}

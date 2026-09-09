@@ -62,3 +62,26 @@ export async function promoteStudentsBulk(
   
   return { success: true }
 }
+
+export async function deleteStudentsBulk(schoolId: string, studentIds: string[]) {
+  const supabase = await createClient()
+
+  if (!studentIds || studentIds.length === 0) return { success: true }
+
+  const { error } = await supabase
+    .schema('gps')
+    .from('students')
+    .delete()
+    .eq('school_id', schoolId)
+    .in('id', studentIds)
+
+  if (error) {
+    throw new Error(`Failed to graduate/delete students: ${error.message}`)
+  }
+
+  // Refresh the affected pages
+  revalidatePath('/school-dashboard/promotion')
+  revalidatePath('/school-dashboard/students')
+  
+  return { success: true }
+}

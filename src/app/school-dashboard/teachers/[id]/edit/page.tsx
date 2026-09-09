@@ -7,7 +7,7 @@ import EditTeacherForm from './EditTeacherForm'
 import EditHeadTeacherPhotoForm from './EditHeadTeacherPhotoForm'
 
 export const metadata = {
-  title: 'Routine Builder | School Dashboard',
+  title: 'Edit Teacher | School Dashboard',
 }
 
 export default async function EditTeacherPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,20 +52,20 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
             <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-stone-900 to-[#6b4c9a]"></div>
             
             <div className="flex-1 mb-5 md:mb-0">
-              <p className="text-[11px] font-medium tracking-widest text-stone-500 uppercase mb-1">
-                Administrative Profile
+              <p className="text-xs font-bold tracking-widest text-stone-500 uppercase mb-1">
+                প্রশাসনিক প্রোফাইল <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1.5">/ ADMINISTRATIVE PROFILE</span>
               </p>
-              <h1 className="text-2xl md:text-3xl font-normal tracking-wide uppercase bg-gradient-to-r from-stone-900 to-[#815ba4] bg-clip-text text-transparent break-words">
-                Update Headmaster
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-wide uppercase bg-gradient-to-r from-stone-900 to-[#815ba4] bg-clip-text text-transparent break-words">
+                প্রধান শিক্ষক এডিট <span className="text-[10px] md:text-xs font-bold text-stone-400 ml-2.5 tracking-widest">/ UPDATE HEADMASTER</span>
               </h1>
             </div>
             
             <div className="flex items-center border-t border-stone-100 pt-4 md:border-t-0 md:pt-0 md:border-l md:pl-5 shrink-0">
               <Link 
                 href="/school-dashboard/teachers" 
-                className="text-[10px] font-medium tracking-widest uppercase text-stone-500 hover:text-[#6b4c9a] transition-colors flex items-center gap-1.5"
+                className="text-xs font-bold tracking-widest uppercase text-stone-500 hover:text-[#6b4c9a] transition-colors flex items-center gap-1.5"
               >
-                <span className="text-sm leading-none">&larr;</span> Return to Directory
+                <span className="text-base leading-none">&larr;</span> ডিরেক্টরিতে ফিরে যান <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1">/ RETURN TO DIRECTORY</span>
               </Link>
             </div>
           </div>
@@ -105,20 +105,20 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
           <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-stone-900 to-[#6b4c9a]"></div>
           
           <div className="flex-1 mb-5 md:mb-0">
-            <p className="text-[11px] font-medium tracking-widest text-stone-500 uppercase mb-1">
-              Faculty Management
+            <p className="text-xs font-bold tracking-widest text-stone-500 uppercase mb-1">
+              ফ্যাকাল্টি ম্যানেজমেন্ট <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1.5">/ FACULTY MANAGEMENT</span>
             </p>
-            <h1 className="text-2xl md:text-3xl font-normal tracking-wide uppercase bg-gradient-to-r from-stone-900 to-[#815ba4] bg-clip-text text-transparent break-words">
-              Edit Teacher Profile
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-wide uppercase bg-gradient-to-r from-stone-900 to-[#815ba4] bg-clip-text text-transparent break-words">
+              শিক্ষক প্রোফাইল এডিট <span className="text-[10px] md:text-xs font-bold text-stone-400 ml-2.5 tracking-widest">/ EDIT TEACHER PROFILE</span>
             </h1>
           </div>
           
           <div className="flex items-center border-t border-stone-100 pt-4 md:border-t-0 md:pt-0 md:border-l md:pl-5 shrink-0">
             <Link 
               href="/school-dashboard/teachers" 
-              className="text-[10px] font-medium tracking-widest uppercase text-stone-500 hover:text-[#6b4c9a] transition-colors flex items-center gap-1.5"
+              className="text-xs font-bold tracking-widest uppercase text-stone-500 hover:text-[#6b4c9a] transition-colors flex items-center gap-1.5"
             >
-              <span className="text-sm leading-none">&larr;</span> Cancel & Return
+              <span className="text-base leading-none">&larr;</span> বাতিল করে ফিরে যান <span className="text-[9px] uppercase tracking-widest opacity-70 ml-1">/ CANCEL & RETURN</span>
             </Link>
           </div>
         </div>

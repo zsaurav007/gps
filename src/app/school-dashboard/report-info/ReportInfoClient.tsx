@@ -44,7 +44,31 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
 
   const toggleStudentField = (key: string) => {
     if (STUDENT_FIELDS.find(f => f.key === key)?.isLocked) return
-    setSelectedStudentFields(prev => prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key])
+
+    setSelectedStudentFields(prev => {
+      const isSelected = prev.includes(key)
+      
+      if (isSelected) {
+        // Deselecting the field
+        return prev.filter(f => f !== key)
+      } else {
+        // Selecting the field
+        const newSelection = [...prev, key]
+        
+        // Auto-select corresponding name if payment is selected
+        if (key === 'fatherPayment' && !newSelection.includes('fatherName')) {
+          newSelection.push('fatherName')
+        }
+        if (key === 'motherPayment' && !newSelection.includes('motherName')) {
+          newSelection.push('motherName')
+        }
+        if (key === 'guardianPayment' && !newSelection.includes('guardianName')) {
+          newSelection.push('guardianName')
+        }
+        
+        return newSelection
+      }
+    })
   }
 
   const toggleTeacherField = (key: string) => {
@@ -60,7 +84,7 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
   const activeColumns = activeFieldsConfig.filter(f => activeSelectedKeys.includes(f.key))
 
   // Data Extraction Logic with Combo Formatter
-  const getMappedData = () => {
+  const getMappedData = (): Record<string, string>[] => {
     if (reportType === 'student') {
       return students.map((s: any) => {
         const row: Record<string, string> = {}
@@ -217,7 +241,7 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {previewData.slice(0, 5).map((row, i) => (
+                {previewData.slice(0, 5).map((row: Record<string, string>, i: number) => (
                   <tr key={i} className="hover:bg-stone-50 transition-colors">
                     {activeColumns.map(col => (
                       <td key={col.key} className="p-4 text-stone-800 font-medium">
@@ -260,7 +284,7 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
             </tr>
           </thead>
           <tbody>
-            {previewData.map((row, i) => (
+            {previewData.map((row: Record<string, string>, i: number) => (
               <tr key={i}>
                 <td className="border border-gray-400 p-2 text-center text-gray-600">{i + 1}</td>
                 {activeColumns.map(col => (
@@ -273,7 +297,6 @@ export default function ReportInfoClient({ students = [], teachers = [], classes
           </tbody>
         </table>
       </div>
-
     </main>
   )
 }

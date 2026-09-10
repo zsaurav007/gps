@@ -253,7 +253,7 @@ function analyzeSetup(
 
       if (totalRequired !== availableSlots) {
         warnings.push(
-          `${cls.name}${section}-এ ঠিক ${engToBng(availableSlots)} পিরিয়ড/সপ্তাহ প্রয়োজন, কিন্তু বর্তমানে ম্যাট্রিক্সে ${engToBng(totalRequired)} দেওয়া আছে।`
+          `শ্রেণি ${cls.name}${section} - এ ঠিক ${engToBng(availableSlots)} পিরিয়ড/সপ্তাহ প্রয়োজন, কিন্তু বর্তমানে ${engToBng(totalRequired)} দেওয়া আছে।`
         )
       }
 
@@ -1053,7 +1053,7 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">২. ক্লাস ও সেকশন ম্যানেজার</h2>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">২. ক্লাস ও সেকশন</h2>
       <p className="text-base font-medium text-stone-600 mt-2 mb-6">আপনার ডেটাবেসের ক্লাসগুলো নিচে দেখানো হলো। আপনি এগুলোর নাম, পিরিয়ড এডিট করতে পারেন বা কাস্টম ক্লাস যোগ করতে পারেন।</p>
 
       <div className="bg-[#fbf9fc] p-6 rounded-sm border border-[#dad3e3] mb-8 shadow-sm flex flex-col md:flex-row gap-5 items-end justify-between">
@@ -1089,7 +1089,7 @@ function ClassesSection({ classes, setClasses, days, requirements, setRequiremen
                 <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500">ক্লাসের নাম (এডিটেবল)</th>
                 <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500 w-32">পিরিয়ড/দিন</th>
                 <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500 w-40 text-center">মোট সাপ্তাহিক পিরিয়ড</th>
-                <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500">সেকশন ম্যানেজার</th>
+                <th className="py-3 px-4 text-base font-bold uppercase tracking-wider text-stone-500">সেকশন </th>
                 <th className="py-3 px-4 w-24"></th>
               </tr>
             </thead>
@@ -1301,7 +1301,7 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
 
   return (
     <section className="bg-white rounded-sm shadow-sm border border-stone-200 p-6 md:p-8">
-      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৪. ক্লাস কারিকুলাম ম্যাট্রিক্স</h2>
+      <h2 className="text-xl md:text-2xl font-semibold text-stone-900 uppercase tracking-wide">৪. ক্লাস কারিকুলাম</h2>
       <p className="text-base font-medium text-stone-600 mt-2 mb-6">
         ডেটাবেস ম্যাপিং অনুযায়ী বিষয় ও সাপ্তাহিক পিরিয়ড সেট করুন।
         <strong className="text-[#b4483e] ml-1">ফাঁকা পিরিয়ড এড়াতে মোট পিরিয়ড অবশ্যই প্রদর্শিত সীমার সমান হতে হবে। প্রতি বিষয়ে সপ্তাহে সর্বোচ্চ {engToBng(days.length)} পিরিয়ড।</strong>
@@ -1309,7 +1309,7 @@ function ClassCurriculumMatrix({ classes, subjects, requirements, setRequirement
 
       {columns.length === 0 || subjects.length === 0 ? (
         <div className="p-6 rounded-sm border border-dashed border-stone-300 bg-stone-50 text-center text-base font-medium text-stone-500">
-          কারিকুলাম ম্যাট্রিক্স তৈরির জন্য ডেটাবেস থেকে ক্লাস এবং বিষয় আনা হচ্ছে...
+          কারিকুলাম তৈরির জন্য ডেটাবেস থেকে ক্লাস এবং বিষয় আনা হচ্ছে...
         </div>
       ) : (
         <div className="overflow-x-auto border border-stone-200 rounded-sm shadow-sm">
@@ -1606,8 +1606,8 @@ function TeacherCapacityDashboard({ maxClassPeriods, deficits }: TeacherCapacity
       
       {unassignedCurriculum > 0 && (
         <div className="mb-6 p-4 bg-[#fcf2f1] border border-[#f2d5d2] rounded-sm">
-          <p className="text-base font-bold text-[#b4483e]">অসম্পূর্ণ কারিকুলাম ম্যাট্রিক্স!</p>
-          <p className="text-sm font-medium text-[#b4483e] mt-1">আপনার ম্যাট্রিক্সে {engToBng(unassignedCurriculum)}টি ক্লাস পিরিয়ডে কোনো বিষয় অ্যাসাইন করা নেই। সম্পূর্ণ শিডিউলের জন্য সেকশন ৪ পূরণ করুন।</p>
+          <p className="text-base font-bold text-[#b4483e]">অসম্পূর্ণ কারিকুলাম!</p>
+          <p className="text-sm font-medium text-[#b4483e] mt-1">আপনার কারিকুলামে {engToBng(unassignedCurriculum)}টি ক্লাস পিরিয়ডে কোনো বিষয় অ্যাসাইন করা নেই। সম্পূর্ণ শিডিউলের জন্য সেকশন ৪ পূরণ করুন।</p>
         </div>
       )}
 
